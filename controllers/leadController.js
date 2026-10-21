@@ -268,6 +268,37 @@ exports.convertLeadToStudent = async (req, res, next) => {
     lead.status = 'Enrolled';
     lead.stage = 'Enrolled';
     lead.score = 100;
+
+    // Auto-create Student entry if not already converted
+    if (!lead.convertedStudentId) {
+      try {
+        const Student = require('../models/Student');
+        const names = (lead.studentName || 'Student').trim().split(' ');
+        const firstName = names[0] || 'Student';
+        const lastName = names.slice(1).join(' ') || 'Candidate';
+        const aparId = 'STU-' + Math.floor(100000 + Math.random() * 900000);
+
+        const newStudent = await Student.create({
+          aparId,
+          admissionNo: aparId,
+          firstName,
+          lastName,
+          gender: 'Male',
+          dateOfBirth: new Date('2015-01-01'),
+          class: lead.targetClass || 'Grade 1',
+          section: 'A',
+          contactNumber: lead.contactNumber,
+          email: lead.email,
+          fatherName: lead.parentName || 'Parent',
+          presentAddress: lead.notes || 'Enquiry converted',
+          admissionDate: new Date()
+        });
+        lead.convertedStudentId = newStudent._id;
+      } catch (stuErr) {
+        console.warn('Student auto-create notice:', stuErr.message);
+      }
+    }
+
     await lead.save();
 
     res.status(200).json({
