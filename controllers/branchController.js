@@ -72,7 +72,17 @@ exports.getBranches = async (req, res, next) => {
 
 exports.updateBranch = async (req, res, next) => {
     try {
-        const branch = await Branch.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        const mongoose = require('mongoose');
+        let branch;
+        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+          branch = await Branch.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        } else {
+          branch = await Branch.findOneAndUpdate(
+            { $or: [{ branchCode: req.params.id }, { branchName: req.body.branchName }] },
+            req.body,
+            { new: true, runValidators: true }
+          );
+        }
         if (branch) {
           try {
             await Tenant.findOneAndUpdate(
@@ -93,7 +103,13 @@ exports.updateBranch = async (req, res, next) => {
 
 exports.deleteBranch = async (req, res, next) => {
     try {
-        const branch = await Branch.findById(req.params.id);
+        const mongoose = require('mongoose');
+        let branch;
+        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+          branch = await Branch.findById(req.params.id);
+        } else {
+          branch = await Branch.findOne({ branchCode: req.params.id });
+        }
         if (branch) {
           try {
             await Tenant.findOneAndDelete({
@@ -105,6 +121,7 @@ exports.deleteBranch = async (req, res, next) => {
         res.status(200).json({ success: true, message: 'Branch deleted' });
     } catch (error) { next(error); }
 };
+
 
 exports.getBranchDashboardStats = async (req, res, next) => {
   try {
