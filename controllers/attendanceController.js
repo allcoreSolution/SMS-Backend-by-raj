@@ -1,36 +1,80 @@
 const mongoose = require('mongoose');
 const Attendance = require('../models/Attendance');
 
+const cleanObjectId = (val) => {
+  if (!val) return null;
+  if (typeof val === 'object' && val._id) val = val._id;
+  const str = String(val).trim();
+  return mongoose.Types.ObjectId.isValid(str) ? str : null;
+};
+
 exports.markAttendance = async (req, res, next) => {
   try {
+    const Student = require('../models/Student');
     // Determine if it's a bulk operation (array of attendance records) or a single record
-    const records = Array.isArray(req.body) ? req.body : [req.body];
+    let records = [];
+    if (Array.isArray(req.body)) {
+      records = req.body;
+    } else if (req.body && Array.isArray(req.body.records)) {
+      records = req.body.records;
+    } else if (req.body && Array.isArray(req.body.attendanceRecords)) {
+      records = req.body.attendanceRecords;
+    } else if (req.body && typeof req.body === 'object') {
+      records = [req.body];
+    }
+
     const savedRecords = [];
     
     for (const record of records) {
-      const { student, date, status, academicClass, section, remarks } = record;
-      const targetDate = new Date(date);
+      if (!record) continue;
+      const studentId = cleanObjectId(record.student || record.studentId || record._id);
+      if (!studentId) continue;
+
+      let finalClass = cleanObjectId(record.academicClass || record.classId || record.class);
+      let finalSection = cleanObjectId(record.section || record.sectionId);
+      
+      // Auto-fallback from Student record if class or section is missing
+      if ((!finalClass || !finalSection) && mongoose.Types.ObjectId.isValid(studentId)) {
+        try {
+          const studentDoc = await Student.findById(studentId).select('classId sectionId');
+          if (studentDoc) {
+            if (!finalClass && studentDoc.classId) finalClass = cleanObjectId(studentDoc.classId);
+            if (!finalSection && studentDoc.sectionId) finalSection = cleanObjectId(studentDoc.sectionId);
+          }
+        } catch (e) {
+          // ignore lookup error
+        }
+      }
+
+      const targetDate = new Date(record.date || Date.now());
       targetDate.setHours(0, 0, 0, 0);
 
       const nextDay = new Date(targetDate);
       nextDay.setDate(nextDay.getDate() + 1);
 
       let attendance = await Attendance.findOne({
-        student,
+        student: studentId,
         date: { $gte: targetDate, $lt: nextDay }
       });
       
+      const newStatus = record.status || 'Present';
+      const newRemarks = record.remarks !== undefined ? record.remarks : (record.remark !== undefined ? record.remark : '');
+
       if (attendance) {
-        attendance.status = status;
-        if (remarks !== undefined) attendance.remarks = remarks;
-        if (academicClass) attendance.academicClass = academicClass;
-        if (section) attendance.section = section;
+        attendance.status = newStatus;
+        if (newRemarks !== undefined) attendance.remarks = newRemarks;
+        if (finalClass) attendance.academicClass = finalClass;
+        attendance.section = finalSection || null;
         await attendance.save();
         savedRecords.push(attendance);
       } else {
         const created = await Attendance.create({
-          ...record,
-          date: targetDate
+          student: studentId,
+          date: targetDate,
+          status: newStatus,
+          academicClass: finalClass || null,
+          section: finalSection || null,
+          remarks: newRemarks
         });
         savedRecords.push(created);
       }
