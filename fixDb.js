@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const MONGO_URI = 'mongodb+srv://allcore2515:iosajay2000@allcoresolution.h6jogox.mongodb.net/school_erp?appName=allcoreSolution';
+require('dotenv').config();
+
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://acsofficedatabase_db_user:SCefcDxANmhXwy2x@cluster0.ssnu4nt.mongodb.net/school_erp';
 
 async function fixDb() {
   try {
