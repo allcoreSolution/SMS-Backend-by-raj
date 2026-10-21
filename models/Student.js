@@ -92,6 +92,16 @@ const studentSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  portalPassword: {
+    type: String,
+    default: 'School@1234',
+    trim: true,
+  },
+  parentPassword: {
+    type: String,
+    default: 'secret_access_24',
+    trim: true,
+  },
   // Photos and Documents
   studentPhoto: {
     type: String, // file path / url

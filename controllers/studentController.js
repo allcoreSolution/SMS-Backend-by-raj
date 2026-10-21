@@ -24,7 +24,7 @@ const standardFields = [
   'studentPhone', 'studentEmail', 'studentPhoto', 'documents', 
   'bloodGroup', 'height', 'weight', 'allergies', 'medicalHistory',
   'fatherName', 'fatherPhone', 'motherName', 'motherPhone', 'status',
-  'classId', 'sectionId', 'parentId'
+  'classId', 'sectionId', 'parentId', 'portalPassword', 'studentPassword', 'parentPassword'
 ];
 
 // @desc    Register a new student admission
@@ -100,6 +100,38 @@ const createStudent = async (req, res) => {
 
     // Save student
     const student = await Student.create(studentData);
+
+    // Auto-create/link Parent record for Student & Parent Portal Access
+    if (studentData.fatherPhone || studentData.studentPhone) {
+      try {
+        const phone = (studentData.fatherPhone || studentData.studentPhone).trim();
+        const parentName = studentData.fatherName || `${student.firstName}'s Parent`;
+        let parent = await Parent.findOne({ phone });
+        if (!parent) {
+          parent = await Parent.create({
+            name: parentName,
+            phone,
+            email: studentData.studentEmail || '',
+            loginId: student.admissionNo || student.aparId,
+            password: studentData.parentPassword || 'secret_access_24',
+            children: [student._id],
+            status: 'Active'
+          });
+        } else {
+          if (!parent.children.includes(student._id)) {
+            parent.children.push(student._id);
+          }
+          if (studentData.parentPassword) {
+            parent.password = studentData.parentPassword;
+          }
+          await parent.save();
+        }
+        student.parentId = parent._id;
+        await student.save();
+      } catch (parentErr) {
+        console.warn('Auto-parent creation info:', parentErr.message);
+      }
+    }
 
     return res.status(201).json({
       success: true,

@@ -35,6 +35,11 @@ const parentSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  password: {
+    type: String,
+    default: 'secret_access_24',
+    trim: true,
+  },
   children: [
     {
       type: mongoose.Schema.Types.ObjectId,
