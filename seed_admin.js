@@ -64,10 +64,65 @@ async function createAdmin() {
       await byUser.save();
     }
 
+    // Accountant Role & User
+    let accountantRole = await Role.findOne({ name: 'Accountant' });
+    if (!accountantRole) {
+      accountantRole = await Role.create({
+        name: 'Accountant',
+        permissions: ['all', 'manage_finance'],
+        description: 'Staff Accountant'
+      });
+    }
+    const accEmail = 'accountant@allcoresolution.com';
+    let accUser = await User.findOne({ email: accEmail });
+    if (!accUser) {
+      accUser = await User.create({
+        username: 'accountant',
+        email: accEmail,
+        password: 'admin@123',
+        role: accountantRole._id,
+        isActive: true,
+      });
+      console.log("Created Accountant User.");
+    } else {
+      accUser.password = 'admin@123';
+      accUser.role = accountantRole._id;
+      accUser.isActive = true;
+      await accUser.save();
+    }
+
+    // Branch Admin Role & User
+    let branchRole = await Role.findOne({ name: 'BranchAdmin' });
+    if (!branchRole) {
+      branchRole = await Role.create({
+        name: 'BranchAdmin',
+        permissions: ['all'],
+        description: 'Branch Administrator'
+      });
+    }
+    const branchEmail = 'admin@branch.com';
+    let branchUser = await User.findOne({ email: branchEmail });
+    if (!branchUser) {
+      branchUser = await User.create({
+        username: 'branchadmin',
+        email: branchEmail,
+        password: 'admin@123',
+        role: branchRole._id,
+        isActive: true,
+      });
+      console.log("Created Branch Admin User.");
+    } else {
+      branchUser.password = 'admin@123';
+      branchUser.role = branchRole._id;
+      branchUser.isActive = true;
+      await branchUser.save();
+    }
+
     console.log("\n==================================");
-    console.log("SUCCESS! ALL ADMIN PANELS READY.");
-    console.log("Login Email: admin123@gmail.com");
-    console.log("Password: admin@123");
+    console.log("SUCCESS! ALL ADMIN & STAFF PANELS READY.");
+    console.log("Admin: admin123@gmail.com / admin@123");
+    console.log("Accountant: accountant@allcoresolution.com / admin@123");
+    console.log("Branch Admin: admin@branch.com / admin@123");
     console.log("==================================\n");
 
   } catch(e) {
