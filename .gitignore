@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# WhatsApp Session & Auth Credentials
+whatsapp_auth/
+*auth_info*
+
+# Uploaded Media / Files
+uploads/documents/*
+uploads/photos/*
+uploads/staffPhotos/*
+!uploads/**/.gitkeep
+
+# Logs and runtime files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

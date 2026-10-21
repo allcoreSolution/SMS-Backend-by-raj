@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "School ERP Core APIs",
+    "description": "Complete collection of APIs for Student, Teacher, Driver, and Staff panels.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication & Auth",
+      "item": [
+        {
+          "name": "User Login (Any Role)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empId\": \"EMP001\",\n  \"password\": \"password123\",\n  \"role\": \"teacher\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"EMP001\",\n  \"email\": \"teacher@school.com\",\n  \"password\": \"password123\",\n  \"roleName\": \"Teacher\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Student Module",
+      "item": [
+        {
+          "name": "Search Due Fees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/search-due-fees?studentId=STU102",
+              "host": ["{{base_url}}"],
+              "path": ["api", "search-due-fees"],
+              "query": [
+                {
+                  "key": "studentId",
+                  "value": "STU102"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "All Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/all-transactions?studentId=STU102",
+              "host": ["{{base_url}}"],
+              "path": ["api", "all-transactions"],
+              "query": [
+                {
+                  "key": "studentId",
+                  "value": "STU102"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Notice Board / Circulars",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notices",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notices"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Teacher Module",
+      "item": [
+        {
+          "name": "Mark Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"classId\": \"Class10A\",\n  \"date\": \"2024-09-02\",\n  \"attendance\": [\n    { \"studentId\": \"STU1023\", \"status\": \"Present\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/attendance/mark",
+              "host": ["{{base_url}}"],
+              "path": ["api", "attendance", "mark"]
+            }
+          }
+        },
+        {
+          "name": "My Leaves",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/leaves/my-leaves?empId=EMP001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves", "my-leaves"],
+              "query": [
+                {
+                  "key": "empId",
+                  "value": "EMP001"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Driver Module",
+      "item": [
+        {
+          "name": "Update Live Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverId\": \"EMP-DRV-04\",\n  \"lat\": 28.535512,\n  \"lng\": 77.391026,\n  \"speed\": 45\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/location/update",
+              "host": ["{{base_url}}"],
+              "path": ["api", "location", "update"]
+            }
+          }
+        },
+        {
+          "name": "Get Live Bus Track",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/location/live",
+              "host": ["{{base_url}}"],
+              "path": ["api", "location", "live"]
+            }
+          }
+        },
+        {
+          "name": "Driver Route",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/transport/my-route?driverId=EMP-DRV-04",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transport", "my-route"],
+              "query": [
+                {
+                  "key": "driverId",
+                  "value": "EMP-DRV-04"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin / HR Module",
+      "item": [
+        {
+          "name": "Tickets / Complaints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tickets"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5050",
+      "type": "string"
+    }
+  ]
+}
