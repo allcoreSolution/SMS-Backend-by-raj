@@ -21,7 +21,7 @@ async function cleanAndSeed() {
     const hashedPassword = await bcrypt.hash('admin@123', 10);
     await mongoose.connection.db.collection('users').insertOne({
       username: 'Super Admin',
-      email: 'admin123@gmail.com',
+      email: 'ryadavy498@gmail.com',
       password: hashedPassword,
       role: 'SuperAdmin',
       createdAt: new Date(),
@@ -31,7 +31,7 @@ async function cleanAndSeed() {
     console.log('\n================================');
     console.log('ALL DUMMY DATA CLEARED SUCCESSFULLY!');
     console.log('New SuperAdmin Created:');
-    console.log('Email: admin123@gmail.com');
+    console.log('Email: ryadavy498@gmail.com');
     console.log('Password: admin@123');
     console.log('================================');
     

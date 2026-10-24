@@ -7,8 +7,19 @@ const {
   getDrivers, addDriver, updateDriver, deleteDriver,
   getBoardingRegister, recordBoarding,
   getLiveTracking,
-  updateVehicleGPS
+  updateVehicleGPS,
+  getDriverAssignedData,
+  getDriverTrips,
+  startTrip,
+  endTrip,
+  recordStudentBoarding,
+  submitInspection,
+  reportIncident,
+  getIncidents,
+  getInspections,
+  getTripHistory
 } = require('../controllers/transportController');
+const { protect } = require('../middleware/authMiddleware');
 
 // Stats & Overview
 router.get('/stats', getStats);
@@ -39,5 +50,21 @@ router.post('/boarding', recordBoarding);
 // Live GPS Tracking & Real Ping
 router.get('/live-tracking', getLiveTracking);
 router.post('/gps-ping', updateVehicleGPS);
+
+// Driver Mobile App Dedicated Endpoints
+router.get('/driver/assigned', getDriverAssignedData);
+router.get('/driver/trips', getDriverTrips);
+router.post('/driver/trip/start', startTrip);
+router.post('/driver/trip/end', endTrip);
+router.post('/driver/boarding', recordStudentBoarding);
+router.post('/driver/inspection', submitInspection);
+router.post('/driver/incident', reportIncident);
+router.post('/driver/sos', reportIncident);
+router.post('/driver/gps-ping', updateVehicleGPS);
+
+// Admin Monitoring & Reports
+router.get('/incidents', getIncidents);
+router.get('/inspections', getInspections);
+router.get('/trips/history', getTripHistory);
 
 module.exports = router;

@@ -82,7 +82,7 @@ const seedDB = async () => {
     console.log('Seeding default Admin user...');
     const adminUser = await User.create({
       username: 'admin',
-      email: 'admin123@gmail.com',
+      email: 'ryadavy498@gmail.com',
       password: 'admin@123', // Will be hashed automatically by user pre-save hook
       role: adminRole._id,
     });

@@ -1,4 +1,4 @@
-const { Vehicle, Route, Driver, BoardingRegister } = require('../models/Transport');
+const { Vehicle, Route, Driver, BoardingRegister, Trip, VehicleInspection, TransportIncident } = require('../models/Transport');
 const Student = require('../models/Student');
 
 // Flagship seed data for initial setup
@@ -505,14 +505,13 @@ exports.getLiveTracking = async (req, res, next) => {
 
 exports.updateVehicleGPS = async (req, res, next) => {
   try {
-    const { vehicleId, vehicleNumber, lat, lng, speed, heading, address } = req.body;
+    const { vehicleId, vehicleNumber, tripId, lat, lng, speed, heading, address } = req.body;
     let query = {};
     if (req.params.id) query._id = req.params.id;
     else if (vehicleId) query._id = vehicleId;
     else if (vehicleNumber) query.vehicleNumber = vehicleNumber;
     else {
-      // If neither specified, update the first active vehicle
-      const first = await Vehicle.findOne({ status: 'Active' });
+      const first = await Vehicle.findOne({ status: { $in: ['Active', 'OnTrip'] } });
       if (first) query._id = first._id;
       else return res.status(400).json({ success: false, message: 'Vehicle identifier missing' });
     }
@@ -533,7 +532,6 @@ exports.updateVehicleGPS = async (req, res, next) => {
           'currentLocation.heading': heading !== undefined ? Number(heading) : 0,
           speed: speed !== undefined ? Math.round(Number(speed)) : 36,
           lastPing: 'Live (Just now)',
-          status: 'Active',
           liveTrackingEnabled: true
         }
       },
@@ -541,7 +539,430 @@ exports.updateVehicleGPS = async (req, res, next) => {
     );
 
     if (!updated) return res.status(404).json({ success: false, message: 'Vehicle not found' });
+
+    // If tripId is provided, append GPS trail (throttled to at most last 200 points)
+    if (tripId) {
+      try {
+        await Trip.findOneAndUpdate(
+          { tripId },
+          {
+            $push: {
+              gpsTrail: {
+                $each: [{ lat: latitude, lng: longitude, speed: speed || 0, heading: heading || 0, timestamp: new Date() }],
+                $slice: -200
+              }
+            }
+          }
+        );
+      } catch (trailErr) {
+        console.warn('Trip GPS trail update note:', trailErr.message);
+      }
+    }
+
+    // Broadcast live telemetry to all connected admin maps & observers via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('transport:location_update', {
+        vehicleId: updated._id,
+        vehicleNumber: updated.vehicleNumber,
+        currentLocation: updated.currentLocation,
+        speed: updated.speed,
+        lastPing: updated.lastPing,
+        status: updated.status,
+        tripId: tripId || null,
+        timestamp: new Date()
+      });
+    }
+
     res.status(200).json({ success: true, message: 'Real GPS coordinates synced', data: updated });
+  } catch (e) {
+    next(e);
+  }
+};
+
+// ======================== DRIVER APP SPECIALIZED CONTROLLER ========================
+
+exports.getDriverAssignedData = async (req, res, next) => {
+  try {
+    await ensureTransportSeeded();
+
+    let driver = null;
+    if (req.user && req.authModel === 'Driver') {
+      driver = req.user;
+    } else {
+      const driverIdentifier = req.query.driverId || req.params.driverId || 'DRV-101';
+      driver = await Driver.findOne({
+        $or: [
+          { driverId: new RegExp(`^${driverIdentifier}$`, 'i') },
+          { mobile: driverIdentifier }
+        ]
+      });
+    }
+
+    if (!driver) {
+      driver = await Driver.findOne({ driverId: 'DRV-101' });
+    }
+
+    // Find assigned vehicle
+    let vehicle = null;
+    if (driver && driver.assignedBus && driver.assignedBus !== 'Unassigned') {
+      vehicle = await Vehicle.findOne({ vehicleNumber: driver.assignedBus });
+    }
+    if (!vehicle) {
+      vehicle = await Vehicle.findOne();
+    }
+
+    // Find assigned route
+    let route = null;
+    if (vehicle) {
+      route = await Route.findOne({ assignedVehicle: vehicle._id });
+    }
+    if (!route) {
+      route = await Route.findOne();
+    }
+
+    // Ensure stops exist
+    let stops = (route && route.stops && route.stops.length > 0) ? route.stops : [
+      { stopName: 'Depot / School Gate', stopTime: '07:00 AM', pickupTime: '07:00 AM', dropTime: '02:00 PM', lat: 28.6139, lng: 77.2090, studentsCount: 0 },
+      { stopName: 'Sector 4 Market', stopTime: '07:15 AM', pickupTime: '07:15 AM', dropTime: '02:15 PM', lat: 28.6200, lng: 77.2150, studentsCount: 3 },
+      { stopName: 'Green Park Metro', stopTime: '07:30 AM', pickupTime: '07:30 AM', dropTime: '02:30 PM', lat: 28.6280, lng: 77.2250, studentsCount: 4 },
+      { stopName: 'Dwarka Mor Crossing', stopTime: '07:45 AM', pickupTime: '07:45 AM', dropTime: '02:45 PM', lat: 28.6350, lng: 77.2350, studentsCount: 5 },
+      { stopName: 'School Main Campus', stopTime: '08:00 AM', pickupTime: '08:00 AM', dropTime: '03:00 PM', lat: 28.6400, lng: 77.2400, studentsCount: 0 }
+    ];
+
+    // Seeded student roster for driver boarding demonstration if empty
+    let students = (route && route.students && route.students.length > 0) ? route.students : [
+      { studentName: 'Aarav Sharma', className: 'Class 5-A', stopName: 'Sector 4 Market', admissionNo: 'ADM-2024-001', rollNo: '12', status: 'Pending' },
+      { studentName: 'Ananya Verma', className: 'Class 6-B', stopName: 'Sector 4 Market', admissionNo: 'ADM-2024-002', rollNo: '04', status: 'Pending' },
+      { studentName: 'Vivaan Patel', className: 'Class 4-A', stopName: 'Sector 4 Market', admissionNo: 'ADM-2024-003', rollNo: '18', status: 'Pending' },
+      { studentName: 'Diya Kapoor', className: 'Class 7-C', stopName: 'Green Park Metro', admissionNo: 'ADM-2024-004', rollNo: '09', status: 'Pending' },
+      { studentName: 'Ishaan Gupta', className: 'Class 8-A', stopName: 'Green Park Metro', admissionNo: 'ADM-2024-005', rollNo: '15', status: 'Pending' },
+      { studentName: 'Rohan Mehra', className: 'Class 5-B', stopName: 'Dwarka Mor Crossing', admissionNo: 'ADM-2024-006', rollNo: '21', status: 'Pending' },
+      { studentName: 'Sanya Malhotra', className: 'Class 9-A', stopName: 'Dwarka Mor Crossing', admissionNo: 'ADM-2024-007', rollNo: '02', status: 'Pending' }
+    ];
+
+    // Check for an active running trip
+    const activeTrip = await Trip.findOne({
+      vehicleNumber: vehicle?.vehicleNumber || driver?.assignedBus,
+      status: 'Active'
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      driver: {
+        id: driver?._id,
+        driverId: driver?.driverId,
+        name: driver?.name,
+        mobile: driver?.mobile,
+        licence: driver?.licence,
+        licenceExpiry: driver?.licenceExpiry,
+        bloodGroup: driver?.bloodGroup,
+        assignedBus: vehicle?.vehicleNumber || driver?.assignedBus || 'DL-01-AB-4501',
+        status: driver?.status || 'Active'
+      },
+      vehicle: vehicle ? {
+        id: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        vehicleModel: vehicle.vehicleModel,
+        capacity: vehicle.capacity,
+        status: vehicle.status,
+        fuelLevel: vehicle.fuelLevel || 85,
+        speed: vehicle.speed || 0,
+        currentLocation: vehicle.currentLocation,
+        lastPing: vehicle.lastPing
+      } : null,
+      route: route ? {
+        id: route._id,
+        routeName: route.routeName,
+        startPoint: route.startPoint,
+        endPoint: route.endPoint,
+        fare: route.fare
+      } : null,
+      stops,
+      students,
+      activeTrip: activeTrip || null
+    });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.getDriverTrips = async (req, res, next) => {
+  try {
+    const { driverId, vehicleNumber, date } = req.query;
+    const query = {};
+    if (vehicleNumber) query.vehicleNumber = vehicleNumber;
+    if (date) query.date = date;
+
+    const trips = await Trip.find(query).sort({ createdAt: -1 }).limit(20);
+    res.status(200).json({ success: true, count: trips.length, data: trips });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.startTrip = async (req, res, next) => {
+  try {
+    const { tripId, vehicleNumber, routeName, tripType, startOdometer, stops, students } = req.body;
+
+    const id = tripId || `TRIP-${Date.now().toString().slice(-6)}`;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check if there's already an active trip for this vehicle
+    const existing = await Trip.findOne({ vehicleNumber, status: 'Active' });
+    if (existing) {
+      return res.status(200).json({
+        success: true,
+        message: 'Trip is already active',
+        data: existing
+      });
+    }
+
+    const trip = await Trip.create({
+      tripId: id,
+      driverName: req.user?.name || req.body.driverName || 'Driver',
+      driverPhone: req.user?.mobile || req.body.driverPhone || '',
+      vehicleNumber: vehicleNumber || 'DL-01-AB-4501',
+      routeName: routeName || 'Dwarka - CP Express Route',
+      tripType: tripType || 'Morning Pickup',
+      status: 'Active',
+      date: today,
+      startedAt: new Date(),
+      currentStopIndex: 0,
+      stops: stops || [],
+      students: students || [],
+      gpsTrail: []
+    });
+
+    // Update vehicle status
+    await Vehicle.findOneAndUpdate(
+      { vehicleNumber: trip.vehicleNumber },
+      { $set: { status: 'OnTrip', liveTrackingEnabled: true } }
+    );
+
+    // Socket.IO broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('transport:trip_status', {
+        type: 'TRIP_STARTED',
+        tripId: trip.tripId,
+        vehicleNumber: trip.vehicleNumber,
+        routeName: trip.routeName,
+        status: 'Active',
+        startedAt: trip.startedAt
+      });
+    }
+
+    res.status(201).json({ success: true, message: 'Trip started successfully', data: trip });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.endTrip = async (req, res, next) => {
+  try {
+    const { tripId, endOdometer, notes } = req.body;
+    const query = tripId ? { tripId } : { status: 'Active' };
+
+    const trip = await Trip.findOne(query);
+    if (!trip) {
+      return res.status(404).json({ success: false, message: 'Active trip not found' });
+    }
+
+    trip.status = 'Completed';
+    trip.endedAt = new Date();
+    await trip.save();
+
+    // Reset vehicle status back to Active
+    await Vehicle.findOneAndUpdate(
+      { vehicleNumber: trip.vehicleNumber },
+      { $set: { status: 'Active', speed: 0 } }
+    );
+
+    // Socket.IO broadcast
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('transport:trip_status', {
+        type: 'TRIP_COMPLETED',
+        tripId: trip.tripId,
+        vehicleNumber: trip.vehicleNumber,
+        routeName: trip.routeName,
+        status: 'Completed',
+        endedAt: trip.endedAt
+      });
+    }
+
+    res.status(200).json({ success: true, message: 'Trip completed successfully', data: trip });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.recordStudentBoarding = async (req, res, next) => {
+  try {
+    const { tripId, studentId, studentName, stopName, status, notes } = req.body;
+    // status: 'Boarded' | 'Dropped' | 'Absent' | 'Pending'
+    const today = new Date().toISOString().split('T')[0];
+
+    let trip = null;
+    if (tripId) {
+      trip = await Trip.findOne({ tripId });
+      if (trip && trip.students) {
+        const stud = trip.students.find(s => s.studentName === studentName || (studentId && String(s.studentId) === String(studentId)));
+        if (stud) {
+          stud.status = status;
+          stud.timestamp = new Date();
+        } else {
+          trip.students.push({
+            studentName,
+            stopName: stopName || 'En-route',
+            status,
+            timestamp: new Date()
+          });
+        }
+        await trip.save();
+      }
+    }
+
+    // Also record in BoardingRegister for auditing
+    let register = await BoardingRegister.findOne({ date: today, vehicleNumber: req.body.vehicleNumber || 'DL-01-AB-4501' });
+    if (!register) {
+      register = new BoardingRegister({
+        date: today,
+        routeName: req.body.routeName || 'Dwarka - CP Express Route',
+        vehicleNumber: req.body.vehicleNumber || 'DL-01-AB-4501',
+        driverName: req.user?.name || req.body.driverName || 'Driver',
+        students: []
+      });
+    }
+
+    const regStudent = register.students.find(s => s.studentName === studentName);
+    if (regStudent) {
+      regStudent.status = status;
+      regStudent.boardedAt = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      register.students.push({
+        studentName,
+        stopName: stopName || 'Bus Stop',
+        status,
+        boardedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      });
+    }
+    await register.save();
+
+    // Broadcast live boarding event via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('transport:boarding_update', {
+        studentName,
+        stopName,
+        status,
+        timestamp: new Date(),
+        vehicleNumber: req.body.vehicleNumber || register.vehicleNumber
+      });
+    }
+
+    res.status(200).json({ success: true, message: `Student status updated to ${status}`, data: { studentName, status } });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.submitInspection = async (req, res, next) => {
+  try {
+    const { vehicleNumber, type, odometer, fuelLevel, checklist, notes, passed } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+
+    const inspection = await VehicleInspection.create({
+      vehicleNumber: vehicleNumber || 'DL-01-AB-4501',
+      driverName: req.user?.name || req.body.driverName || 'Driver',
+      date: today,
+      type: type || 'Pre-Trip',
+      odometer: Number(odometer) || 45280,
+      fuelLevel: Number(fuelLevel) || 85,
+      checklist: checklist || {
+        tyres: true,
+        lights: true,
+        brakes: true,
+        fuel: true,
+        wipers: true,
+        firstAidKit: true,
+        fireExtinguisher: true,
+        emergencyDoor: true,
+        cleanliness: true
+      },
+      passed: passed !== undefined ? passed : true,
+      notes: notes || 'Vehicle in good running condition'
+    });
+
+    res.status(201).json({ success: true, message: 'Vehicle pre-trip inspection saved', data: inspection });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.reportIncident = async (req, res, next) => {
+  try {
+    const { type, vehicleNumber, location, description, severity } = req.body;
+
+    const incident = await TransportIncident.create({
+      type: type || 'SOS',
+      vehicleNumber: vehicleNumber || 'DL-01-AB-4501',
+      driverName: req.user?.name || req.body.driverName || 'Driver Ramesh Kumar',
+      routeName: req.body.routeName || 'Dwarka - CP Express Route',
+      location: location || { lat: 28.6139, lng: 77.2090, address: 'Near Connaught Place' },
+      severity: severity || 'Critical',
+      description: description || 'Emergency SOS button triggered by driver.',
+      status: 'Active'
+    });
+
+    // High priority Socket.IO broadcast to all school admin dashboards!
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('transport:sos_alert', {
+        incidentId: incident._id,
+        type: incident.type,
+        vehicleNumber: incident.vehicleNumber,
+        driverName: incident.driverName,
+        location: incident.location,
+        severity: incident.severity,
+        description: incident.description,
+        timestamp: incident.createdAt
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'EMERGENCY SOS ALERT dispatched immediately to school administrators!',
+      data: incident
+    });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.getIncidents = async (req, res, next) => {
+  try {
+    const incidents = await TransportIncident.find().sort({ createdAt: -1 }).limit(30);
+    res.status(200).json({ success: true, count: incidents.length, data: incidents });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.getInspections = async (req, res, next) => {
+  try {
+    const inspections = await VehicleInspection.find().sort({ createdAt: -1 }).limit(30);
+    res.status(200).json({ success: true, count: inspections.length, data: inspections });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.getTripHistory = async (req, res, next) => {
+  try {
+    const trips = await Trip.find().sort({ createdAt: -1 }).limit(50);
+    res.status(200).json({ success: true, count: trips.length, data: trips });
   } catch (e) {
     next(e);
   }

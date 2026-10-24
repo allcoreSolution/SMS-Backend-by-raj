@@ -1,4 +1,4 @@
-// server.js
+// server.js - Auth & Password Reset Active
 require('dotenv').config();
 
 const http = require('http');
@@ -28,34 +28,42 @@ app.set('io', io);
 
 io.use((socket, next) => {
   try {
-    const token = socket.handshake.auth?.token;
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
 
     if (!token || !process.env.JWT_SECRET) {
-      return next(new Error('Authentication required'));
+      socket.data.isGuest = true;
+      return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id || decoded._id ||
-      decoded.userId || decoded.sub;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.id || decoded._id ||
+        decoded.userId || decoded.sub;
 
-    if (!userId) {
-      return next(new Error('Invalid token payload'));
+      if (userId) {
+        socket.data.userId = String(userId);
+        socket.data.userRole = decoded.role || 'User';
+      }
+    } catch {
+      socket.data.isGuest = true;
     }
 
-    socket.data.userId = String(userId);
     next();
   } catch {
-    next(new Error('Invalid or expired token'));
+    next();
   }
 });
 
 io.on('connection', (socket) => {
-  socket.join(`user:${socket.data.userId}`);
+  if (socket.data.userId) {
+    socket.join(`user:${socket.data.userId}`);
+  }
+  socket.join('transport:fleet');
 
-  console.log('Authenticated chat socket connected');
+  console.log(`Socket connected: ${socket.id} (User: ${socket.data.userId || 'Guest/Transport'})`);
 
   socket.on('disconnect', () => {
-    console.log('Chat socket disconnected');
+    console.log(`Socket disconnected: ${socket.id}`);
   });
 });
 

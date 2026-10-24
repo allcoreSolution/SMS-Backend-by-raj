@@ -20,39 +20,27 @@ async function createAdmin() {
       superRole = await Role.create({ name: 'SuperAdmin', permissions: ['all'], description: 'Platform Super Admin' });
     }
 
-    const email = 'admin123@gmail.com';
+    const email = 'ryadavy498@gmail.com';
     const password = 'admin@123';
 
     // Upsert Admin
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ $or: [{ email }, { email: 'admin123@gmail.com' }, { username: 'admin' }] });
     if (!user) {
       user = await User.create({
         username: 'admin',
         email,
         password,
-        role: adminRole._id,
+        role: superRole._id,
         isActive: true,
       });
       console.log("Created Admin User.");
     } else {
+      user.email = email;
       user.password = password;
       user.isActive = true;
-      user.role = adminRole._id;
+      user.role = superRole._id;
       await user.save();
-      console.log("Updated Admin User password.");
-    }
-
-    // Also create/update SuperAdmin with same credentials
-    let superUser = await User.findOne({ email: 'admin123@gmail.com', role: superRole._id });
-    if (!superUser) {
-      // Same email can work if role differs, or use same login for all panels
-      let existing = await User.findOne({ email });
-      if (existing) {
-        existing.role = superRole._id;
-        existing.password = password;
-        await existing.save();
-        console.log("Updated user role to SuperAdmin as well (shared login).");
-      }
+      console.log("Updated Admin User with ryadavy498@gmail.com.");
     }
 
     // Also ensure username-based login works
@@ -120,7 +108,7 @@ async function createAdmin() {
 
     console.log("\n==================================");
     console.log("SUCCESS! ALL ADMIN & STAFF PANELS READY.");
-    console.log("Admin: admin123@gmail.com / admin@123");
+    console.log("Admin: ryadavy498@gmail.com / admin@123");
     console.log("Accountant: accountant@allcoresolution.com / admin@123");
     console.log("Branch Admin: admin@branch.com / admin@123");
     console.log("==================================\n");

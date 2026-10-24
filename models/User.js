@@ -98,6 +98,14 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  resetPasswordOtp: {
+    type: String,
+    select: false,
+  },
+  resetPasswordOtpExpires: {
+    type: Date,
+    select: false,
+  },
   preferences: {
     systemAlerts: { type: Boolean, default: true },
     securityAlerts: { type: Boolean, default: true },

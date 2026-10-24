@@ -13,10 +13,10 @@ async function createSuperAdmin() {
       adminRole = await Role.create({ name: 'SuperAdmin', permissions: ['all'], description: 'Platform Super Admin' });
     }
 
-    const email = 'admin123@gmail.com';
+    const email = 'ryadavy498@gmail.com';
     const password = 'admin@123';
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ $or: [{ email }, { email: 'admin123@gmail.com' }, { username: 'superadmin' }, { username: 'admin' }] });
     if (!user) {
       user = await User.create({
         username: 'superadmin',
@@ -28,6 +28,7 @@ async function createSuperAdmin() {
       console.log("Created SuperAdmin User Document.");
     } else {
       console.log("User already exists. Updating to SuperAdmin credentials...");
+      user.email = email;
       user.password = password;
       user.role = adminRole._id;
       user.isActive = true;
@@ -36,7 +37,7 @@ async function createSuperAdmin() {
 
     console.log("\n==================================");
     console.log("SUCCESS! SUPERADMIN IS READY.");
-    console.log("Login Email: admin123@gmail.com");
+    console.log("Login Email: ryadavy498@gmail.com");
     console.log("Password: admin@123");
     console.log("==================================\n");
 

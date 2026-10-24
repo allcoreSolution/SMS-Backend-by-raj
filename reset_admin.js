@@ -7,13 +7,10 @@ async function resetPassword() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("Connected to DB.");
 
-    const email = 'admin123@gmail.com';
+    const email = 'ryadavy498@gmail.com';
     const password = 'admin@123';
 
-    let user = await User.findOne({ email });
-    if (!user) {
-       user = await User.findOne({ username: 'admin' });
-    }
+    let user = await User.findOne({ $or: [{ email }, { email: 'admin123@gmail.com' }, { username: 'admin' }, { username: 'superadmin' }] });
     if (!user) {
        user = await User.findOne({ email: 'superadmin@erp.com' });
     }
@@ -27,7 +24,7 @@ async function resetPassword() {
         user.isActive = true;
         await user.save();
         console.log("SUCCESS! Admin credentials set to:");
-        console.log("Email: admin123@gmail.com");
+        console.log("Email: ryadavy498@gmail.com");
         console.log("Password: admin@123");
     } else {
         console.log("No admin user found to reset! Run seed_admin.js first.");

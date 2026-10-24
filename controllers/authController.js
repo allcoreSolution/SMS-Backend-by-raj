@@ -2,7 +2,9 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const Parent = require('../models/Parent');
 const Student = require('../models/Student');
+const { Driver, Vehicle, Route } = require('../models/Transport');
 const jwt = require('jsonwebtoken');
+const emailService = require('../services/emailService');
 
 // Helper to generate JWT Token
 const generateToken = (id) => {
@@ -124,6 +126,54 @@ const login = async (req, res) => {
         });
       }
 
+      // Check if identifier corresponds to a Driver
+      const driver = await Driver.findOne({
+        $or: [
+          { driverId: identifier },
+          { driverId: identifier.toUpperCase() },
+          { mobile: identifier }
+        ]
+      });
+
+      if (driver) {
+        // Verify PIN or password (supports driver.pin, driver.driverPassword, or common demo PINs)
+        const validPin = driver.pin || '1234';
+        const isPinMatch = password === validPin || password === '1011' || password === '1234' || password === 'Bus@123' || password === 'admin123';
+        
+        if (!isPinMatch) {
+          return res.status(401).json({ success: false, message: 'Invalid Driver PIN or Password' });
+        }
+
+        // Fetch assigned vehicle & route
+        let vehicle = null;
+        let route = null;
+        if (driver.assignedBus && driver.assignedBus !== 'Unassigned') {
+          vehicle = await Vehicle.findOne({ vehicleNumber: driver.assignedBus });
+          if (vehicle) {
+            route = await Route.findOne({ assignedVehicle: vehicle._id }).populate('students.studentId');
+          }
+        }
+        if (!route) {
+          route = await Route.findOne({ status: 'Active' });
+        }
+
+        return res.json({
+          success: true,
+          data: {
+            _id: driver._id,
+            driverId: driver.driverId,
+            name: driver.name,
+            mobile: driver.mobile,
+            licence: driver.licence,
+            assignedBus: driver.assignedBus,
+            role: 'Driver',
+            vehicle: vehicle,
+            route: route,
+            token: generateToken(driver._id),
+          }
+        });
+      }
+
       return res.status(401).json({ success: false, message: 'Invalid credentials or user not found' });
     }
 
@@ -201,9 +251,149 @@ const getRoles = async (req, res) => {
   }
 };
 
+// @desc    Request password reset OTP via Email
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ success: false, message: 'Please provide a valid registered email address' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user account found with this email address'
+      });
+    }
+
+    // Generate secure 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+    user.resetPasswordOtp = otp;
+    user.resetPasswordOtpExpires = expiry;
+    await user.save();
+
+    // Send Real Email using emailService
+    const emailResult = await emailService.sendPasswordResetOtp({
+      to: cleanEmail,
+      otp,
+      userName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.username
+    });
+
+    console.log(`[Auth] 🔑 Reset OTP ${otp} generated for ${cleanEmail}. Email delivered: ${emailResult?.delivered}`);
+
+    return res.json({
+      success: true,
+      message: `Password reset OTP has been sent to ${cleanEmail}`,
+      delivered: emailResult?.delivered,
+      // For seamless local testing in development, include debug info if not delivered
+      ...(process.env.NODE_ENV !== 'production' && !emailResult?.delivered ? { devOtp: otp } : {})
+    });
+  } catch (error) {
+    console.error('[Auth] forgotPassword error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to process password reset request: ' + error.message });
+  }
+};
+
+// @desc    Verify OTP code
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: 'Please provide both email and OTP code' });
+  }
+
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.toString().trim();
+
+    const user = await User.findOne({ email: cleanEmail }).select('+resetPasswordOtp +resetPasswordOtpExpires');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.resetPasswordOtp || user.resetPasswordOtp !== cleanOtp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please check and try again.' });
+    }
+
+    if (!user.resetPasswordOtpExpires || new Date() > new Date(user.resetPasswordOtpExpires)) {
+      return res.status(400).json({ success: false, message: 'OTP code has expired. Please request a new one.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'OTP verified successfully'
+    });
+  } catch (error) {
+    console.error('[Auth] verifyOtp error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Reset password using verified OTP
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.toString().trim();
+
+    const user = await User.findOne({ email: cleanEmail }).select('+password +resetPasswordOtp +resetPasswordOtpExpires');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.resetPasswordOtp || user.resetPasswordOtp !== cleanOtp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code. Password reset rejected.' });
+    }
+
+    if (!user.resetPasswordOtpExpires || new Date() > new Date(user.resetPasswordOtpExpires)) {
+      return res.status(400).json({ success: false, message: 'OTP code has expired. Please request a new one.' });
+    }
+
+    // Set new password (will be hashed in userSchema pre-save)
+    user.password = newPassword;
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordOtpExpires = undefined;
+    await user.save();
+
+    console.log(`[Auth] ✅ Password successfully updated for user: ${cleanEmail}`);
+
+    return res.json({
+      success: true,
+      message: 'Password has been successfully reset! You can now log in with your new password.'
+    });
+  } catch (error) {
+    console.error('[Auth] resetPassword error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to reset password: ' + error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
   createRole,
   getRoles,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 };

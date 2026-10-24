@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Parent = require('../models/Parent');
 const Student = require('../models/Student');
+const { Driver } = require('../models/Transport');
 
 const normalizeRole = (user, fallback) => {
   const role = user?.role;
@@ -40,6 +41,11 @@ const protect = async (req, res, next) => {
     if (!user) {
       user = await Student.findById(id).catch(() => null);
       modelName = 'Student';
+    }
+
+    if (!user) {
+      user = await Driver.findById(id).catch(() => null);
+      modelName = 'Driver';
     }
 
     if (!user) {

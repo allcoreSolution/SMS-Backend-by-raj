@@ -209,6 +209,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/hpc', hpcRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/parent', parentRoutes);
+app.use('/api/parents', parentRoutes);
 
 // Base Status Route
 

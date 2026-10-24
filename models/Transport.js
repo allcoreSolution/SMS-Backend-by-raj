@@ -94,9 +94,102 @@ const boardingSchema = new mongoose.Schema({
   }]
 }, { timestamps: true });
 
+const tripSchema = new mongoose.Schema({
+  tripId: { type: String, required: true, unique: true },
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+  driverName: { type: String, default: '' },
+  driverPhone: { type: String, default: '' },
+  vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+  vehicleNumber: { type: String, required: true },
+  routeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Route' },
+  routeName: { type: String, required: true },
+  tripType: { type: String, enum: ['Morning Pickup', 'Afternoon Drop', 'Special Event'], default: 'Morning Pickup' },
+  status: { type: String, enum: ['Scheduled', 'Active', 'Completed', 'Cancelled', 'Delayed'], default: 'Scheduled' },
+  date: { type: String, required: true }, // YYYY-MM-DD
+  startedAt: { type: Date },
+  endedAt: { type: Date },
+  totalDistanceKm: { type: Number, default: 0 },
+  currentStopIndex: { type: Number, default: 0 },
+  stops: [{
+    stopName: { type: String, required: true },
+    scheduledTime: { type: String },
+    actualArrivalTime: { type: Date },
+    lat: { type: Number },
+    lng: { type: Number },
+    status: { type: String, enum: ['Pending', 'Reached', 'Skipped'], default: 'Pending' }
+  }],
+  students: [{
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    studentName: { type: String, required: true },
+    className: { type: String, default: '' },
+    stopName: { type: String, required: true },
+    status: { type: String, enum: ['Pending', 'Boarded', 'Dropped', 'Absent'], default: 'Pending' },
+    timestamp: { type: Date }
+  }],
+  gpsTrail: [{
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
+    speed: { type: Number, default: 0 },
+    heading: { type: Number, default: 0 },
+    timestamp: { type: Date, default: Date.now }
+  }]
+}, { timestamps: true });
+
+const inspectionSchema = new mongoose.Schema({
+  vehicleNumber: { type: String, required: true },
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+  driverName: { type: String, default: '' },
+  date: { type: String, required: true },
+  type: { type: String, enum: ['Pre-Trip', 'Post-Trip'], default: 'Pre-Trip' },
+  odometer: { type: Number, default: 0 },
+  fuelLevel: { type: Number, default: 100 },
+  checklist: {
+    tyres: { type: Boolean, default: true },
+    lights: { type: Boolean, default: true },
+    brakes: { type: Boolean, default: true },
+    fuel: { type: Boolean, default: true },
+    wipers: { type: Boolean, default: true },
+    firstAidKit: { type: Boolean, default: true },
+    fireExtinguisher: { type: Boolean, default: true },
+    emergencyDoor: { type: Boolean, default: true },
+    cleanliness: { type: Boolean, default: true }
+  },
+  passed: { type: Boolean, default: true },
+  notes: { type: String, default: '' }
+}, { timestamps: true });
+
+const incidentSchema = new mongoose.Schema({
+  type: { type: String, enum: ['SOS', 'Breakdown', 'Accident', 'Delay', 'RouteObstruction', 'Medical'], default: 'SOS' },
+  vehicleNumber: { type: String, required: true },
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+  driverName: { type: String, default: '' },
+  routeName: { type: String, default: '' },
+  location: {
+    lat: { type: Number, default: 28.6139 },
+    lng: { type: Number, default: 77.2090 },
+    address: { type: String, default: '' }
+  },
+  severity: { type: String, enum: ['Low', 'Medium', 'High', 'Critical'], default: 'High' },
+  description: { type: String, default: '' },
+  status: { type: String, enum: ['Active', 'Acknowledged', 'Resolved'], default: 'Active' },
+  acknowledgedBy: { type: String, default: '' },
+  resolvedAt: { type: Date }
+}, { timestamps: true });
+
 const Vehicle = mongoose.model('Vehicle', vehicleSchema);
 const Route = mongoose.model('Route', routeSchema);
 const Driver = mongoose.model('Driver', driverSchema);
 const BoardingRegister = mongoose.model('BoardingRegister', boardingSchema);
+const Trip = mongoose.model('Trip', tripSchema);
+const VehicleInspection = mongoose.model('VehicleInspection', inspectionSchema);
+const TransportIncident = mongoose.model('TransportIncident', incidentSchema);
 
-module.exports = { Vehicle, Route, Driver, BoardingRegister };
+module.exports = { 
+  Vehicle, 
+  Route, 
+  Driver, 
+  BoardingRegister,
+  Trip,
+  VehicleInspection,
+  TransportIncident
+};
