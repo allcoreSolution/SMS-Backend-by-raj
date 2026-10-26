@@ -69,6 +69,8 @@ const driverSchema = new mongoose.Schema({
   joinedOn: { type: String, default: '01-04-2024' },
   leftOn: { type: String, default: '' },
   pin: { type: String, default: '1234' },
+  photo: { type: String, default: '' },
+  avatar: { type: String, default: '' },
   devices: { type: String, default: '1 enrolled' },
   lastSeen: { type: String, default: '10 mins ago' },
   note: { type: String, default: '' }
@@ -109,6 +111,9 @@ const tripSchema = new mongoose.Schema({
   startedAt: { type: Date },
   endedAt: { type: Date },
   totalDistanceKm: { type: Number, default: 0 },
+  startOdometer: { type: Number, default: 0 },
+  endOdometer: { type: Number, default: 0 },
+  notes: { type: String, default: '' },
   currentStopIndex: { type: Number, default: 0 },
   stops: [{
     stopName: { type: String, required: true },
@@ -176,6 +181,54 @@ const incidentSchema = new mongoose.Schema({
   resolvedAt: { type: Date }
 }, { timestamps: true });
 
+const driverAttendanceSchema = new mongoose.Schema({
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', required: true },
+  driverEmpId: { type: String, required: true },
+  driverName: { type: String, required: true },
+  date: { type: String, required: true }, // YYYY-MM-DD
+  status: { type: String, enum: ['Present', 'Late', 'Half-Day', 'On-Leave', 'Absent'], default: 'Present' },
+  clockInTime: { type: Date },
+  clockOutTime: { type: Date },
+  clockInLocation: {
+    lat: Number,
+    lng: Number,
+    address: String
+  },
+  clockOutLocation: {
+    lat: Number,
+    lng: Number,
+    address: String
+  },
+  workingHours: { type: Number, default: 0 },
+  device: { type: String, default: 'GPS-BUS-12' },
+  method: { type: String, default: 'Biometric Face / Fingerprint' },
+  depotName: { type: String, default: 'Greenwood Bus Depot Zone A' },
+  geofenceStatus: { type: String, default: 'Geo-fence OK' },
+  remarks: { type: String, default: '' }
+}, { timestamps: true });
+
+const driverLeaveSchema = new mongoose.Schema({
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', required: true },
+  driverEmpId: { type: String, required: true },
+  driverName: { type: String, required: true },
+  leaveType: { type: String, enum: ['Casual', 'Sick', 'Emergency', 'Annual'], default: 'Casual' },
+  startDate: { type: String, required: true }, // YYYY-MM-DD
+  endDate: { type: String, required: true },
+  reason: { type: String, required: true },
+  status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
+  reviewedBy: { type: String, default: '' },
+  remarks: { type: String, default: '' }
+}, { timestamps: true });
+
+// Performance indexes
+driverSchema.index({ driverId: 1, mobile: 1 });
+tripSchema.index({ tripId: 1, driverId: 1, status: 1, date: 1 });
+boardingSchema.index({ date: 1, vehicleNumber: 1 });
+inspectionSchema.index({ vehicleNumber: 1, date: 1 });
+incidentSchema.index({ status: 1, vehicleNumber: 1 });
+driverAttendanceSchema.index({ driverId: 1, date: 1 }, { unique: true });
+driverLeaveSchema.index({ driverId: 1, startDate: 1 });
+
 const Vehicle = mongoose.model('Vehicle', vehicleSchema);
 const Route = mongoose.model('Route', routeSchema);
 const Driver = mongoose.model('Driver', driverSchema);
@@ -183,6 +236,8 @@ const BoardingRegister = mongoose.model('BoardingRegister', boardingSchema);
 const Trip = mongoose.model('Trip', tripSchema);
 const VehicleInspection = mongoose.model('VehicleInspection', inspectionSchema);
 const TransportIncident = mongoose.model('TransportIncident', incidentSchema);
+const DriverAttendance = mongoose.model('DriverAttendance', driverAttendanceSchema);
+const DriverLeave = mongoose.model('DriverLeave', driverLeaveSchema);
 
 module.exports = { 
   Vehicle, 
@@ -191,5 +246,7 @@ module.exports = {
   BoardingRegister,
   Trip,
   VehicleInspection,
-  TransportIncident
+  TransportIncident,
+  DriverAttendance,
+  DriverLeave
 };

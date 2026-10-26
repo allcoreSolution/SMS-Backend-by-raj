@@ -311,6 +311,28 @@ exports.getVehicles = async (req, res, next) => {
 exports.addVehicle = async (req, res, next) => {
   try {
     const vehicle = await Vehicle.create(req.body);
+    if (req.body.driverName) {
+      let driver = await Driver.findOne({
+        $or: [
+          { name: req.body.driverName },
+          { assignedBus: vehicle.vehicleNumber }
+        ]
+      });
+      if (!driver) {
+        const count = await Driver.countDocuments();
+        driver = await Driver.create({
+          driverId: `DRV-${101 + count}`,
+          name: req.body.driverName,
+          mobile: req.body.driverPhone || '9811200000',
+          licence: 'DL-COMMERCIAL-2024',
+          assignedBus: vehicle.vehicleNumber,
+          pin: req.body.driverPassword || '1011',
+          status: 'Active'
+        });
+      }
+      vehicle.driverId = driver._id;
+      await vehicle.save();
+    }
     res.status(201).json({ success: true, message: 'Vehicle registered successfully', data: vehicle });
   } catch (e) {
     next(e);

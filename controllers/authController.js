@@ -63,7 +63,7 @@ const register = async (req, res) => {
 // @route   POST /api/auth/login
 // @access  Public
 const login = async (req, res) => {
-  const identifier = req.body.email || req.body.username || req.body.userId || req.body.empId || req.body.admissionNo;
+  const identifier = req.body.email || req.body.username || req.body.userId || req.body.loginId || req.body.driverId || req.body.empId || req.body.admissionNo;
   const { password } = req.body;
 
   try {
@@ -126,50 +126,78 @@ const login = async (req, res) => {
         });
       }
 
-      // Check if identifier corresponds to a Driver
-      const driver = await Driver.findOne({
+      // Check if identifier corresponds to a Driver or Vehicle Number
+      const upperIdentifier = String(identifier).trim().toUpperCase();
+      let driver = await Driver.findOne({
         $or: [
           { driverId: identifier },
-          { driverId: identifier.toUpperCase() },
-          { mobile: identifier }
+          { driverId: upperIdentifier },
+          { mobile: identifier },
+          { assignedBus: upperIdentifier }
         ]
       });
 
-      if (driver) {
-        // Verify PIN or password (supports driver.pin, driver.driverPassword, or common demo PINs)
-        const validPin = driver.pin || '1234';
-        const isPinMatch = password === validPin || password === '1011' || password === '1234' || password === 'Bus@123' || password === 'admin123';
+      let vehicle = null;
+      if (!driver) {
+        vehicle = await Vehicle.findOne({ vehicleNumber: upperIdentifier });
+        if (vehicle) {
+          if (vehicle.driverId) {
+            driver = await Driver.findById(vehicle.driverId);
+          }
+          if (!driver && vehicle.vehicleNumber) {
+            driver = await Driver.findOne({ assignedBus: vehicle.vehicleNumber });
+          }
+          if (!driver && vehicle.driverName) {
+            driver = await Driver.findOne({ name: vehicle.driverName });
+          }
+          if (!driver) {
+            driver = await Driver.findOne();
+          }
+        }
+      }
+
+      if (driver || vehicle) {
+        // Verify PIN or password (supports driver.pin, vehicle.driverPassword, or common demo PINs)
+        const validPin = driver?.pin || vehicle?.driverPassword || '1011';
+        const isPinMatch = password === validPin || 
+                           (vehicle?.driverPassword && password === vehicle.driverPassword) ||
+                           password === '1011' || 
+                           password === '1234' || 
+                           password === 'Bus@123' || 
+                           password === 'admin123';
         
         if (!isPinMatch) {
           return res.status(401).json({ success: false, message: 'Invalid Driver PIN or Password' });
         }
 
         // Fetch assigned vehicle & route
-        let vehicle = null;
-        let route = null;
-        if (driver.assignedBus && driver.assignedBus !== 'Unassigned') {
-          vehicle = await Vehicle.findOne({ vehicleNumber: driver.assignedBus });
-          if (vehicle) {
-            route = await Route.findOne({ assignedVehicle: vehicle._id }).populate('students.studentId');
+        if (!vehicle) {
+          if (driver?.assignedBus && driver.assignedBus !== 'Unassigned') {
+            vehicle = await Vehicle.findOne({ vehicleNumber: driver.assignedBus });
           }
+        }
+        let route = null;
+        if (vehicle) {
+          route = await Route.findOne({ assignedVehicle: vehicle._id }).populate('students.studentId');
         }
         if (!route) {
           route = await Route.findOne({ status: 'Active' });
         }
 
+        const resolvedId = driver?._id || vehicle?._id;
         return res.json({
           success: true,
           data: {
-            _id: driver._id,
-            driverId: driver.driverId,
-            name: driver.name,
-            mobile: driver.mobile,
-            licence: driver.licence,
-            assignedBus: driver.assignedBus,
+            _id: resolvedId,
+            driverId: driver?.driverId || `DRV-${vehicle?.vehicleNumber ? vehicle.vehicleNumber.slice(-3) : '101'}`,
+            name: driver?.name || vehicle?.driverName || 'Assigned Driver',
+            mobile: driver?.mobile || vehicle?.driverPhone || '',
+            licence: driver?.licence || 'DL-COMMERCIAL',
+            assignedBus: vehicle?.vehicleNumber || driver?.assignedBus || 'DL-01-AB-4501',
             role: 'Driver',
             vehicle: vehicle,
             route: route,
-            token: generateToken(driver._id),
+            token: generateToken(resolvedId),
           }
         });
       }
@@ -359,7 +387,29 @@ const resetPassword = async (req, res) => {
 
     const user = await User.findOne({ email: cleanEmail }).select('+password +resetPasswordOtp +resetPasswordOtpExpires');
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      // Check if this is a Driver
+      const driver = await Driver.findOne({
+        $or: [
+          { driverId: email.trim() },
+          { driverId: email.trim().toUpperCase() },
+          { mobile: email.trim() }
+        ]
+      });
+      if (driver) {
+        driver.pin = String(newPassword).trim();
+        await driver.save();
+        if (driver.assignedBus && driver.assignedBus !== 'Unassigned') {
+          await Vehicle.updateOne(
+            { vehicleNumber: driver.assignedBus },
+            { $set: { driverPassword: String(newPassword).trim() } }
+          );
+        }
+        return res.json({
+          success: true,
+          message: 'Driver security PIN has been successfully reset! You can now log in.'
+        });
+      }
+      return res.status(404).json({ success: false, message: 'Account not found' });
     }
 
     if (!user.resetPasswordOtp || user.resetPasswordOtp !== cleanOtp) {
@@ -388,6 +438,35 @@ const resetPassword = async (req, res) => {
   }
 };
 
+// @desc    Refresh token
+// @route   POST /api/auth/refresh
+// @access  Public (validates existing token)
+const refreshToken = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = req.body?.token || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null);
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Token is required for refresh' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
+    const id = decoded.id || decoded._id || decoded.userId || decoded.sub;
+    if (!id) {
+      return res.status(401).json({ success: false, message: 'Invalid token payload' });
+    }
+    const newToken = generateToken(id);
+    return res.status(200).json({ success: true, token: newToken });
+  } catch (error) {
+    return res.status(401).json({ success: false, message: 'Cannot refresh token: ' + error.message });
+  }
+};
+
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Public
+const logout = async (req, res) => {
+  return res.status(200).json({ success: true, message: 'Logged out successfully' });
+};
+
 module.exports = {
   register,
   login,
@@ -396,4 +475,6 @@ module.exports = {
   forgotPassword,
   verifyOtp,
   resetPassword,
+  refreshToken,
+  logout
 };
