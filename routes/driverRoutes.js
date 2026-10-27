@@ -30,7 +30,8 @@ const {
   getLeaves,
   applyLeave,
   changeDriverPassword,
-  uploadDriverPhoto
+  uploadDriverPhoto,
+  verifyQR
 } = require('../controllers/driverController');
 const { protect, authorizeDriver } = require('../middleware/authMiddleware');
 
@@ -71,6 +72,8 @@ router.post('/boarding', recordBoarding);
 router.patch('/trips/:tripId/boarding/:boardingId', recordBoarding);
 router.post('/trips/:tripId/scan-qr', scanQR);
 router.post('/scan-qr', scanQR);
+router.get('/verify-qr', verifyQR);
+router.post('/verify-qr', verifyQR);
 
 // 6. GPS
 router.post('/gps', updateGPS);

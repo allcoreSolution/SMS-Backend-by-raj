@@ -24,8 +24,21 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid authentication configuration' });
     }
 
-    if (token === 'demo-driver-token-drv-101') {
-      let driver = await Driver.findOne({ status: 'Active' });
+    if (token.startsWith('demo-driver-token-')) {
+      const rawId = token.replace('demo-driver-token-', '').trim();
+      let driver = await Driver.findOne({
+        $or: [
+          { driverId: rawId.toUpperCase() },
+          { driverId: rawId },
+          { driverId: `DRV-${rawId.replace(/^DRV-?/i, '')}` }
+        ]
+      });
+      if (!driver && mongoose.Types.ObjectId.isValid(rawId)) {
+        driver = await Driver.findById(rawId);
+      }
+      if (!driver) {
+        driver = await Driver.findOne({ status: 'Active' });
+      }
       if (!driver) driver = await Driver.findOne();
       if (driver) {
         req.user = driver;

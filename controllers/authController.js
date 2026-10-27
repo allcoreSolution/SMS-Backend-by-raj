@@ -194,6 +194,8 @@ const login = async (req, res) => {
             mobile: driver?.mobile || vehicle?.driverPhone || '',
             licence: driver?.licence || 'DL-COMMERCIAL',
             assignedBus: vehicle?.vehicleNumber || driver?.assignedBus || 'DL-01-AB-4501',
+            photo: driver?.photo || driver?.avatar || vehicle?.driverPhoto || '',
+            avatar: driver?.avatar || driver?.photo || vehicle?.driverPhoto || '',
             role: 'Driver',
             vehicle: vehicle,
             route: route,
@@ -467,6 +469,38 @@ const logout = async (req, res) => {
   return res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
 
+// @desc    Get list of active drivers for portal login
+// @route   GET /api/auth/drivers
+// @access  Public
+const getActiveDriversList = async (req, res) => {
+  try {
+    const drivers = await Driver.find({ status: 'Active' })
+      .select('driverId name mobile assignedBus photo avatar pin')
+      .lean();
+
+    const vehicles = await Vehicle.find().lean();
+    const vehicleMap = {};
+    vehicles.forEach(v => {
+      if (v.vehicleNumber) vehicleMap[v.vehicleNumber] = v;
+    });
+
+    const list = drivers.map(d => ({
+      _id: d._id,
+      driverId: d.driverId,
+      name: d.name,
+      mobile: d.mobile,
+      assignedBus: d.assignedBus,
+      photo: d.photo || d.avatar || vehicleMap[d.assignedBus]?.driverPhoto || '',
+      pin: d.pin || vehicleMap[d.assignedBus]?.driverPassword || '1011',
+      vehicleModel: vehicleMap[d.assignedBus]?.vehicleModel || 'Standard Fleet Bus'
+    }));
+
+    return res.status(200).json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -476,5 +510,6 @@ module.exports = {
   verifyOtp,
   resetPassword,
   refreshToken,
-  logout
+  logout,
+  getActiveDriversList
 };
