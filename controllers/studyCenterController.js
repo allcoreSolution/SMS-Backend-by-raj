@@ -8,8 +8,7 @@ const { LiveClass } = require('../models/LiveClass');
 
 // Helper to auto-seed initial Study Center records if empty
 const autoSeedStudyCenterIfEmpty = async () => {
-  const count = await SyllabusUnit.countDocuments();
-  if (count > 0) return;
+  return;
 
   // 1. Seed Syllabus Units
   await SyllabusUnit.insertMany([
@@ -493,7 +492,7 @@ exports.createClasswork = async (req, res, next) => {
         data.attachments = data.attachments ? [data.attachments] : [];
       }
     }
-    if (!data.teacherName) data.teacherName = 'Amit Sharma';
+    if (!data.teacherName) data.teacherName = req.user?.name || 'Faculty Member';
     if (!data.type) data.type = 'Classwork';
 
     const log = await ClassworkLog.create(data);
@@ -670,7 +669,7 @@ exports.createHomework = async (req, res, next) => {
     if (req.file) {
       data.fileUrl = `uploads/documents/${req.file.filename}`;
     }
-    if (!data.teacherName) data.teacherName = 'Amit Sharma';
+    if (!data.teacherName) data.teacherName = req.user?.name || 'Faculty Member';
     const hw = await HomeworkAssignment.create(data);
     res.status(201).json({ success: true, message: 'Homework assignment created', data: hw });
   } catch (error) {

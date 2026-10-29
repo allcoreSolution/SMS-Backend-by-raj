@@ -222,14 +222,23 @@ exports.getAttendanceSummary = async (req, res, next) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
+        const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+        let studentFilter = {};
+        if (tenantId && !req.isDemoAdmin) {
+            const Student = require('../models/Student');
+            const tenantStudentIds = await Student.find({ tenant: tenantId }).distinct('_id');
+            studentFilter = { student: { $in: tenantStudentIds } };
+        }
+
         // Find attendance records for today
         let records = await Attendance.find({
+            ...studentFilter,
             date: { $gte: today, $lt: tomorrow }
         }).populate('academicClass', 'className name');
 
         let isLatestFallback = false;
-        // If no attendance marked today, fall back to the most recent date with attendance
-        if (records.length === 0) {
+        // If demo admin and no attendance today, fall back to recent demo record
+        if (records.length === 0 && (!tenantId || req.isDemoAdmin)) {
             const latestRecord = await Attendance.findOne().sort({ date: -1 });
             if (latestRecord) {
                 const latestDate = new Date(latestRecord.date);

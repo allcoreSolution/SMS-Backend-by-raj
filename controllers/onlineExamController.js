@@ -577,48 +577,7 @@ exports.getOnlineExamResults = async (req, res, next) => {
       .populate('student', 'firstName lastName admissionNo rollNo profileImage')
       .sort({ score: -1 });
 
-    // If an examId is specified and no results exist yet, auto-seed realistic sample submissions
-    if (examId && results.length === 0) {
-      const exam = await OnlineExam.findById(examId);
-      if (exam) {
-        const students = await Student.find().limit(5);
-        const sampleSubmissions = [
-          { name: students[0] ? `${students[0].firstName} ${students[0].lastName}` : 'Ananya Desai', roll: students[0]?.rollNo || 'STU-001', score: Math.round(exam.totalMarks * 0.9), time: '48 min', photo: 'https://i.pravatar.cc/60?img=1' },
-          { name: students[1] ? `${students[1].firstName} ${students[1].lastName}` : 'Kabir Sharma', roll: students[1]?.rollNo || 'STU-002', score: Math.round(exam.totalMarks * 0.7), time: '55 min', photo: 'https://i.pravatar.cc/60?img=2' },
-          { name: students[2] ? `${students[2].firstName} ${students[2].lastName}` : 'Priya Nair',   roll: students[2]?.rollNo || 'STU-003', score: Math.round(exam.totalMarks * 0.95), time: '40 min', photo: 'https://i.pravatar.cc/60?img=5' },
-          { name: students[3] ? `${students[3].firstName} ${students[3].lastName}` : 'Rohit Gupta',  roll: students[3]?.rollNo || 'STU-004', score: Math.round(exam.totalMarks * 0.35), time: '60 min', photo: 'https://i.pravatar.cc/60?img=7' },
-          { name: students[4] ? `${students[4].firstName} ${students[4].lastName}` : 'Sanya Mehta',  roll: students[4]?.rollNo || 'STU-005', score: Math.round(exam.totalMarks * 0.8), time: '52 min', photo: 'https://i.pravatar.cc/60?img=9' },
-        ];
-
-        for (let i = 0; i < sampleSubmissions.length; i++) {
-          const sub = sampleSubmissions[i];
-          const isPass = sub.score >= (exam.passingMarks || Math.round(exam.totalMarks * 0.4));
-          const pct = Math.round((sub.score / exam.totalMarks) * 100);
-          await OnlineExamResult.create({
-            onlineExam: exam._id,
-            student: students[i]?._id,
-            studentName: sub.name,
-            rollNo: sub.roll,
-            className: exam.className,
-            score: sub.score,
-            totalMarks: exam.totalMarks,
-            percentage: pct,
-            grade: pct >= 90 ? 'A+' : pct >= 75 ? 'A' : pct >= 60 ? 'B' : pct >= 40 ? 'C' : 'D',
-            status: isPass ? 'Pass' : 'Fail',
-            photo: sub.photo,
-            time: sub.time,
-            timeTakenMinutes: parseInt(sub.time) || 45
-          });
-        }
-
-        await OnlineExam.findByIdAndUpdate(examId, { attempts: sampleSubmissions.length });
-
-        results = await OnlineExamResult.find(query)
-          .populate('onlineExam', 'title durationMinutes duration totalMarks subjectName')
-          .populate('student', 'firstName lastName admissionNo rollNo profileImage')
-          .sort({ score: -1 });
-      }
-    }
+    // No auto-seed of sample submissions
 
     // Format for frontend
     const formatted = results.map((r, i) => {

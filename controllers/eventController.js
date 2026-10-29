@@ -65,7 +65,7 @@ const SEED_EVENTS = [
 ];
 
 const ensureEventsSeeded = async () => {
-  const count = await Event.countDocuments();
+  return;
   if (count === 0) {
     await Event.insertMany(SEED_EVENTS);
   }

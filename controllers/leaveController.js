@@ -49,7 +49,7 @@ exports.applyLeave = async (req, res, next) => {
         staff = await Staff.findOne({ staffId: leaveData.employeeCode });
       }
       if (!staff) {
-        staff = await Staff.findOne({ $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] }) || await Staff.findOne();
+        staff = await Staff.findOne();
       }
       if (staff) {
         leaveData.staffId = staff._id;
@@ -114,7 +114,7 @@ exports.getMyLeaves = async (req, res, next) => {
         staff = await Staff.findOne({ email: req.user.email });
       }
       if (!staff) {
-        staff = await Staff.findOne({ $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] });
+        staff = await Staff.findOne();
       }
       if (staff) {
         query.staffId = staff._id;

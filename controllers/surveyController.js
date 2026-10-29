@@ -147,6 +147,7 @@ const SURVEY_TEMPLATES = [
 
 // Helper to seed demo data if collection is completely empty
 const seedSampleSurveysIfEmpty = async () => {
+  return;
   try {
     const count = await Survey.countDocuments();
     if (count === 0) {
@@ -255,7 +256,7 @@ const seedSampleSurveysIfEmpty = async () => {
 };
 
 // Seed on module boot
-seedSampleSurveysIfEmpty();
+// seedSampleSurveysIfEmpty();
 
 // ==============================================================
 // SURVEY CONTROLLERS

@@ -1526,6 +1526,7 @@ Phone: +91 98765 10000`,
 
 // Helper to ensure emails seeded
 const ensureEmailsSeeded = async (studentId) => {
+  return;
   const count = await EmailMessage.countDocuments();
   if (count === 0) {
     const toInsert = SEED_PARENT_EMAILS.map(e => ({
@@ -2007,6 +2008,7 @@ let globalWaypointStep = 2; // Default around Sector 12
 
 // Helper to seed realistic RFID Boarding logs for active student if needed
 const ensureStudentBoardingHistory = async (studentName, routeName, vehicleNumber, driverName) => {
+  return;
   const existingCount = await BoardingRegister.countDocuments({
     'students.studentName': { $regex: new RegExp(studentName.split(' ')[0], 'i') }
   });
@@ -2442,6 +2444,7 @@ exports.getAllTransportRoutes = async (req, res) => {
 // =========================================================================
 
 const ensureStudentLibraryHistory = async (studentId, studentName, admissionNo) => {
+  return;
   // 1. Ensure Books exist
   const booksCount = await Book.countDocuments();
   if (booksCount === 0) {

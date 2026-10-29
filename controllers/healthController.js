@@ -27,36 +27,20 @@ const resolveStaffHealthDoc = async (req) => {
     doc = await StaffHealthRecord.create({
       userId: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
       staffId: staffId && mongoose.Types.ObjectId.isValid(staffId) ? staffId : null,
-      email: email ? email.toLowerCase() : 'amit.sharma@school.edu',
-      fullName: req.user?.name || req.body?.fullName || 'Amit Sharma',
-      records: [
-        { date: '01 Sep 2026', type: 'General Checkup', doctor: 'Dr. Meera Kapoor', hospital: 'City Medical Center', bp: '120/80', weight: '72 kg', temp: '98.6°F', sugar: '95 mg/dL', notes: 'Overall health is good. Continue regular exercise.', status: 'Normal' },
-        { date: '15 Aug 2026', type: 'Blood Test', doctor: 'Dr. Ramesh Shah', hospital: 'LifeCare Lab', bp: '—', weight: '72 kg', temp: '—', sugar: '102 mg/dL', notes: 'Haemoglobin slightly low. Iron supplements recommended.', status: 'Attention' },
-        { date: '10 Jul 2026', type: 'Eye Checkup', doctor: 'Dr. Priya Nair', hospital: 'Vision Plus Clinic', bp: '—', weight: '—', temp: '—', sugar: '—', notes: 'Power -1.25 (right), -1.00 (left). Glasses recommended.', status: 'Normal' },
-        { date: '20 Jun 2026', type: 'Dental Checkup', doctor: 'Dr. Arun Joshi', hospital: 'SmileCare Dental', bp: '—', weight: '—', temp: '—', sugar: '—', notes: 'Minor cavity in lower molar. Filling done.', status: 'Treated' }
-      ],
-      vaccinations: [
-        { name: 'COVID-19 (Booster)', date: '15 Jan 2026', due: '—', status: 'Done' },
-        { name: 'Hepatitis B', date: '10 Mar 2023', due: '—', status: 'Done' },
-        { name: 'Influenza (Flu)', date: '01 Nov 2025', due: 'Nov 2026', status: 'Due Soon' },
-        { name: 'Tetanus (TT)', date: '12 Feb 2021', due: 'Feb 2031', status: 'Done' }
-      ],
-      medications: [
-        { name: 'Vitamin D3 1000IU', dosage: '1 tablet daily', since: '01 Sep 2026', until: 'Ongoing' },
-        { name: 'Iron Supplement', dosage: '1 tablet daily (after meals)', since: '15 Aug 2026', until: '15 Nov 2026' }
-      ],
+      email: email ? email.toLowerCase() : (req.user?.email || ''),
+      fullName: req.user?.name || req.body?.fullName || 'Faculty Member',
+      records: [],
+      vaccinations: [],
+      medications: [],
       medicalProfile: {
-        bloodGroup: 'B+',
+        bloodGroup: '',
         allergies: 'None',
         chronicConditions: 'None',
         surgeries: 'None',
         disability: 'None',
-        insurance: 'Star Health — #SH-20261234'
+        insurance: ''
       },
-      emergencyContacts: [
-        { name: 'Sunita Sharma', rel: 'Spouse', phone: '+91 98765 12345', address: '123, Civil Lines, Delhi' },
-        { name: 'Ramesh Sharma', rel: 'Father', phone: '+91 91234 56789', address: '456, Model Town, Delhi' }
-      ]
+      emergencyContacts: []
     });
   }
 

@@ -31,7 +31,7 @@ const isChatAdmin = (req) => {
     ? req.user.role.permissions
     : [];
 
-  return ['admin', 'superadmin'].includes(role) ||
+  return ['admin', 'superadmin', 'staff', 'teacher'].includes(role) ||
     permissions.includes('all') ||
     permissions.includes('manage_chat');
 };

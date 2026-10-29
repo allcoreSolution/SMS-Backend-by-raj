@@ -213,8 +213,8 @@ const SEED_ROUTES = [
   }
 ];
 
-// Helper to ensure database is seeded with realistic fleet
 const ensureTransportSeeded = async () => {
+  return;
   const vCount = await Vehicle.countDocuments();
   if (vCount === 0) {
     // 1. Seed Drivers
@@ -275,9 +275,6 @@ exports.getStats = async (req, res, next) => {
       }
     });
 
-    // In case no stops have student counts yet, default to reasonable figure
-    if (studentsUsingTransport === 0) studentsUsingTransport = 142;
-
     res.status(200).json({
       success: true,
       data: {
@@ -286,10 +283,10 @@ exports.getStats = async (req, res, next) => {
         studentsUsingTransport,
         vehiclesOnDuty,
         totalDrivers,
-        runningTrips: 3,
-        completedTripsToday: 4,
-        totalFleetCapacity: 190,
-        monthlyTransportRevenue: '₹3,40,800'
+        runningTrips: 0,
+        completedTripsToday: 0,
+        totalFleetCapacity: 0,
+        monthlyTransportRevenue: '₹0'
       }
     });
   } catch (e) {

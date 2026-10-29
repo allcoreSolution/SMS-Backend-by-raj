@@ -61,7 +61,7 @@ const SEED_BROADCASTS = [
 ];
 
 const ensureBroadcastsSeeded = async () => {
-  const count = await Broadcast.countDocuments();
+  return;
   if (count === 0) {
     await Broadcast.insertMany(SEED_BROADCASTS);
   }

@@ -76,6 +76,11 @@ const createStaff = async (req, res) => {
       }
     });
 
+    const assignedTenant = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+    if (assignedTenant) {
+      staffData.tenant = assignedTenant;
+    }
+
     const staff = await Staff.create(staffData);
 
     return res.status(201).json({
@@ -99,6 +104,10 @@ const getStaffs = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, department, designation, employmentType } = req.query;
     const query = {};
+    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+    if (tenantId && !req.isDemoAdmin) {
+      query.tenant = tenantId;
+    }
 
     if (search) {
       query.$or = [

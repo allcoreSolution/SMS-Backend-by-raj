@@ -162,6 +162,7 @@ const SEED_REQUESTS = [
 ];
 
 const ensureLibrarySeeded = async () => {
+  return;
   const booksCount = await Book.countDocuments();
   if (booksCount === 0) {
     await Book.insertMany(SEED_BOOKS);

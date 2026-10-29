@@ -28,17 +28,16 @@ exports.getExamDashboardStats = async (req, res, next) => {
     const totalPossibleResults = studentCount * Math.max(totalScheduled, 1);
     const marksEntryPercent = totalPossibleResults > 0 
       ? Math.min(Math.round((totalResultsEntered / totalPossibleResults) * 100), 100) 
-      : 84;
+      : 0;
 
     // Exam Type Distribution for Pie Chart
     const types = await ExamType.find().limit(6);
     const examTypeData = [];
     for (const t of types) {
       const count = await Exam.countDocuments({ examType: t.name });
-      examTypeData.push({ name: t.name, value: count || 1 });
-    }
-    if (examTypeData.length === 0) {
-      examTypeData.push({ name: 'Term Exam', value: 3 }, { name: 'Unit Test', value: 2 }, { name: 'Annual', value: 1 });
+      if (count > 0) {
+        examTypeData.push({ name: t.name, value: count });
+      }
     }
 
     // Schedule Timeline Data for Area Chart
@@ -49,22 +48,13 @@ exports.getExamDashboardStats = async (req, res, next) => {
       scheduleDataMap[dateStr] = (scheduleDataMap[dateStr] || 0) + 1;
     });
     const examScheduleData = Object.keys(scheduleDataMap).map(d => ({ name: d, count: scheduleDataMap[d] }));
-    if (examScheduleData.length === 0) {
-      examScheduleData.push(
-        { name: '10 Nov', count: 2 },
-        { name: '12 Nov', count: 3 },
-        { name: '15 Nov', count: 4 },
-        { name: '18 Nov', count: 3 },
-        { name: '20 Nov', count: 1 }
-      );
-    }
 
     // Attendance breakdown
     const presentCount = await ExamResult.countDocuments({ attendance: 'Present' });
     const absentCount = await ExamResult.countDocuments({ attendance: 'Absent' });
     const attendanceData = [
-      { name: 'Present', value: presentCount || 92 },
-      { name: 'Absent', value: absentCount || 8 }
+      { name: 'Present', value: presentCount },
+      { name: 'Absent', value: absentCount }
     ];
 
     // Marks Entry Progress by Exam
@@ -74,10 +64,10 @@ exports.getExamDashboardStats = async (req, res, next) => {
     for (let i = 0; i < allExams.length; i++) {
       const ex = allExams[i];
       const entered = await ExamResult.countDocuments({ exam: ex._id });
-      const target = studentCount > 0 ? studentCount * 4 : 50;
+      const target = studentCount > 0 ? studentCount * 4 : 0;
       marksEntryProgress.push({
         name: ex.examName,
-        current: entered || 18,
+        current: entered,
         total: target,
         color: colors[i % colors.length]
       });
@@ -89,19 +79,13 @@ exports.getExamDashboardStats = async (req, res, next) => {
     for (const cls of classes) {
       const passed = await ExamResult.countDocuments({ academicClass: cls._id, marksObtained: { $gte: 40 } });
       const failed = await ExamResult.countDocuments({ academicClass: cls._id, marksObtained: { $lt: 40 } });
-      passFailData.push({
-        name: cls.className || 'Class',
-        passed: passed || Math.floor(Math.random() * 20 + 25),
-        failed: failed || Math.floor(Math.random() * 3 + 1)
-      });
-    }
-    if (passFailData.length === 0) {
-      passFailData.push(
-        { name: 'Class I', passed: 42, failed: 2 },
-        { name: 'Class II', passed: 38, failed: 3 },
-        { name: 'Class III', passed: 45, failed: 1 },
-        { name: 'Class IV', passed: 39, failed: 4 }
-      );
+      if (passed > 0 || failed > 0) {
+        passFailData.push({
+          name: cls.className || 'Class',
+          passed: passed,
+          failed: failed
+        });
+      }
     }
 
     // Operations Counts

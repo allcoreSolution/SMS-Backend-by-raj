@@ -81,10 +81,6 @@ const DEFAULT_ASSESSMENTS = [
 exports.getStrands = async (req, res, next) => {
   try {
     const { subject } = req.query;
-    let count = await CbcStrand.countDocuments();
-    if (count === 0) {
-      await CbcStrand.insertMany(DEFAULT_STRANDS);
-    }
     const query = subject ? { subject } : {};
     const strands = await CbcStrand.find(query).sort({ createdAt: 1 });
     res.status(200).json({ success: true, count: strands.length, data: strands });
@@ -119,10 +115,6 @@ exports.deleteStrand = async (req, res, next) => {
 exports.getAssessments = async (req, res, next) => {
   try {
     const { classGrade, section, subject } = req.query;
-    let count = await CbcAssessment.countDocuments();
-    if (count === 0) {
-      await CbcAssessment.insertMany(DEFAULT_ASSESSMENTS);
-    }
     let query = {};
     if (classGrade) query.classGrade = classGrade;
     if (section) query.section = section;
@@ -181,14 +173,14 @@ exports.getCbcStats = async (req, res, next) => {
 
     const proficiencyRate = totalScoresRecorded > 0
       ? Math.round(((rating4Count + rating3Count) / totalScoresRecorded) * 100)
-      : 85;
+      : 0;
 
     res.status(200).json({
       success: true,
       data: {
-        strandsCount: strandsCount || 12,
-        assessmentsCount: assessments.length || 7,
-        competenciesCount: 7,
+        strandsCount: strandsCount || 0,
+        assessmentsCount: assessments.length || 0,
+        competenciesCount: 0,
         totalScoresRecorded,
         proficiencyRate,
         rubricBreakdown: {

@@ -98,6 +98,11 @@ const createStudent = async (req, res) => {
 
     studentData.extraFields = extraFields;
 
+    const assignedTenant = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+    if (assignedTenant) {
+      studentData.tenant = assignedTenant;
+    }
+
     // Save student
     const student = await Student.create(studentData);
 
@@ -169,6 +174,10 @@ const getStudents = async (req, res) => {
     } = req.query;
 
     const query = {};
+    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+    if (tenantId && !req.isDemoAdmin) {
+      query.tenant = tenantId;
+    }
 
     // Search filter
     if (search) {

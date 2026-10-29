@@ -51,6 +51,7 @@ const SEED_NOTICES = [
 ];
 
 const ensureNoticesSeeded = async () => {
+  return;
   const count = await Notice.countDocuments();
   if (count === 0) {
     await Notice.insertMany(SEED_NOTICES);

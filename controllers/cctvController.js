@@ -135,10 +135,6 @@ exports.getCctvStats = async (req, res) => {
   try {
     const totalCameras = await Camera.countDocuments();
     
-    // Auto-seed if zero cameras found
-    if (totalCameras === 0) {
-      await Camera.insertMany(INITIAL_SEED_CAMERAS);
-    }
 
     const [
       cameras,
@@ -216,11 +212,6 @@ exports.getCameras = async (req, res) => {
 
     let cameras = await Camera.find(query).sort({ createdAt: -1 });
 
-    // Seed if completely empty
-    if (cameras.length === 0 && !search && !status && !parents && !covers) {
-      await Camera.insertMany(INITIAL_SEED_CAMERAS);
-      cameras = await Camera.find({}).sort({ createdAt: -1 });
-    }
 
     return res.status(200).json({
       success: true,

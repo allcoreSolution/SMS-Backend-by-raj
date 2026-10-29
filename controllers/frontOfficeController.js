@@ -207,9 +207,8 @@ exports.deleteVisitor = async (req, res, next) => {
 
 // ======================== COMPLAINTS ========================
 const autoSeedTeacherComplaints = async () => {
+  return;
   try {
-    const count = await Complaint.countDocuments({ subject: { $exists: true, $ne: '' } });
-    if (count > 0) return;
 
     const defaultTeacherComplaints = [
       {

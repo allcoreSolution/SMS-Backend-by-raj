@@ -109,11 +109,7 @@ const SEED_ALBUMS = [
 ];
 
 const ensureGallerySeeded = async () => {
-  const count = await GalleryAlbum.countDocuments();
-  if (count < 8) {
-    await GalleryAlbum.deleteMany({});
-    await GalleryAlbum.insertMany(SEED_ALBUMS);
-  }
+  return;
 };
 
 exports.getGallery = async (req, res) => {

@@ -378,8 +378,8 @@ exports.createStaffLoan = async (req, res, next) => {
     }
 
     if (!data.staffName) {
-      data.staffName = 'Amit Sharma';
-      data.employeeCode = data.employeeCode || 'STF-101';
+      data.staffName = 'Staff Member';
+      data.employeeCode = data.employeeCode || '';
     }
 
     // Generate schedule

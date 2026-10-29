@@ -19,14 +19,24 @@ exports.registerTenant = async (req, res) => {
          adminRole = await Role.create({ name: 'Admin', permissions: ['all'] });
       }
       
-      const user = new User({
-         username: req.body.adminEmail || req.body.email,
-         email: req.body.adminEmail || req.body.email,
-         password: req.body.adminPassword || 'admin123',
-         role: adminRole._id,
-         tenant: tenant._id,
-      });
-      await user.save();
+      const adminEmail = req.body.adminEmail || req.body.email;
+      const adminPwd = req.body.adminPassword || 'admin123';
+      let user = await User.findOne({ email: adminEmail });
+      if (user) {
+        user.tenant = tenant._id;
+        user.role = adminRole._id;
+        user.password = adminPwd;
+        await user.save();
+      } else {
+        user = new User({
+          username: adminEmail,
+          email: adminEmail,
+          password: adminPwd,
+          role: adminRole._id,
+          tenant: tenant._id,
+        });
+        await user.save();
+      }
     } catch(uErr) {
       console.warn('Admin user create notice:', uErr.message);
     }
@@ -169,9 +179,9 @@ exports.getDashboardStats = async (req, res) => {
       data: {
         activeSchools: activeSchoolsCount,
         totalSchools: totalSchoolsCount,
-        totalRevenue: 285400,
-        totalStudents: totalStudents > 0 ? totalStudents : 10000,
-        totalStudentsTarget: 10000,
+        totalRevenue: 0,
+        totalStudents: totalStudents || 0,
+        totalStudentsTarget: 0,
         activeSessions: 1
       }
     });

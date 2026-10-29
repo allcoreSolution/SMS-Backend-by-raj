@@ -202,14 +202,7 @@ exports.getTickets = async (req, res) => {
 
     let tickets = await SupportTicket.find(filter).sort({ updatedAt: -1 });
 
-    // If database has 0 tickets, auto-seed sample realistic tickets
-    if (tickets.length === 0 && !search && (!status || status === 'All')) {
-      const existingCount = await SupportTicket.countDocuments();
-      if (existingCount === 0) {
-        await SupportTicket.insertMany(sampleTickets);
-        tickets = await SupportTicket.find(filter).sort({ updatedAt: -1 });
-      }
-    }
+
 
     // Compute stats
     const allTickets = await SupportTicket.find();

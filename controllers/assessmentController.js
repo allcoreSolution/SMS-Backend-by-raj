@@ -151,10 +151,7 @@ const DEFAULT_ASSESSMENTS = [
 // 1. GET ALL ASSESSMENTS
 exports.getAssessments = async (req, res) => {
   try {
-    const count = await Assessment.countDocuments();
-    if (count === 0) {
-      await Assessment.insertMany(DEFAULT_ASSESSMENTS);
-    }
+
 
     const { type, classSec, subject, status, search } = req.query;
     let query = {};

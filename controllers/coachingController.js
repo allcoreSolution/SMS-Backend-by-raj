@@ -127,10 +127,7 @@ const DEFAULT_COACHING_PROGRAMS = [
 // GET all coaching modules
 exports.getCoachingModules = async (req, res) => {
   try {
-    let count = await CoachingProgram.countDocuments();
-    if (count === 0) {
-      await CoachingProgram.insertMany(DEFAULT_COACHING_PROGRAMS);
-    }
+
 
     const { category, search, studentId } = req.query;
     let query = {};

@@ -44,6 +44,7 @@ const COMPLIANCE_PACKS = [
 
 // Seed realistic initial documents, checklist and profile if database is empty
 const seedComplianceDataIfEmpty = async () => {
+  return;
   try {
     const profileCount = await ComplianceProfile.countDocuments();
     if (profileCount === 0) {
@@ -251,7 +252,7 @@ const seedComplianceDataIfEmpty = async () => {
 };
 
 // Seed on startup
-seedComplianceDataIfEmpty();
+// seedComplianceDataIfEmpty();
 
 // ==============================================================
 // 1. COMPLIANCE OVERVIEW & READINESS SCORES
@@ -260,8 +261,7 @@ exports.getComplianceOverview = async (req, res, next) => {
   try {
     let profile = await ComplianceProfile.findOne();
     if (!profile) {
-      await seedComplianceDataIfEmpty();
-      profile = await ComplianceProfile.findOne();
+      profile = await ComplianceProfile.create({});
     }
 
     // Documents breakdown

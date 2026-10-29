@@ -362,21 +362,23 @@ exports.getTeacherDashboard = async (req, res, next) => {
     liveActivity.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     // 9. Staff Profile & Payslip for Classic Layout
-    const seniorTeacher = await Staff.findOne({ staffId: 'STF-101' }) || await Staff.findOne();
+    let seniorTeacher = null;
+    if (req.user?.email) seniorTeacher = await Staff.findOne({ email: req.user.email.toLowerCase() });
+    if (!seniorTeacher) seniorTeacher = await Staff.findOne();
     const latestPayroll = seniorTeacher ? await Payroll.findOne({ staffId: seniorTeacher._id }).sort({ year: -1, month: -1 }) : null;
 
     res.status(200).json({
       success: true,
       data: {
         stats: {
-          students: studentCount,
-          classes: classCount,
-          attendance: overallPercentage,
-          exams: scheduledExamsCount + onlineExamsCount,
-          notices: activeNoticesCount,
-          pendingHomework: pendingHomeworkCount,
-          subjectsAssigned: subjectsCount,
-          pendingLeaves: pendingLeavesCount
+          students: studentCount || 0,
+          classes: classCount || 0,
+          attendance: overallPercentage || '0%',
+          exams: (scheduledExamsCount || 0) + (onlineExamsCount || 0),
+          notices: activeNoticesCount || 0,
+          pendingHomework: pendingHomeworkCount || 0,
+          subjectsAssigned: subjectsCount || 0,
+          pendingLeaves: pendingLeavesCount || 0
         },
         attendanceWidget: {
           overallPercentage,
@@ -395,18 +397,18 @@ exports.getTeacherDashboard = async (req, res, next) => {
         birthdays: birthdays.slice(0, 6),
         liveActivity: liveActivity.slice(0, 10),
         teacherProfile: {
-          fullName: seniorTeacher?.fullName || 'Amit Sharma',
-          staffId: seniorTeacher?.staffId || 'STF-101',
-          designation: seniorTeacher?.designation || 'Senior PGT Mathematics',
-          department: seniorTeacher?.department || 'Science & Math',
-          email: seniorTeacher?.email || 'amit.sharma@school.edu',
-          phone: seniorTeacher?.phone || '9876543210',
-          photo: seniorTeacher?.photo || 'https://i.pravatar.cc/150?img=11',
+          fullName: seniorTeacher?.fullName || 'Faculty Member',
+          staffId: seniorTeacher?.staffId || '',
+          designation: seniorTeacher?.designation || 'Faculty',
+          department: seniorTeacher?.department || 'Academics',
+          email: seniorTeacher?.email || '',
+          phone: seniorTeacher?.phone || '',
+          photo: seniorTeacher?.photo || '',
           latestSalary: {
-            month: latestPayroll?.month ? new Date(2026, latestPayroll.month - 1).toLocaleString('en-US', { month: 'long' }) : 'August',
-            year: latestPayroll?.year || 2026,
-            netSalary: latestPayroll?.netSalary ? `₹${latestPayroll.netSalary.toLocaleString('en-IN')}` : '₹48,500.00',
-            status: latestPayroll?.status || 'Paid'
+            month: latestPayroll?.month ? new Date(2026, latestPayroll.month - 1).toLocaleString('en-US', { month: 'long' }) : '',
+            year: latestPayroll?.year || new Date().getFullYear(),
+            netSalary: latestPayroll?.netSalary ? `₹${latestPayroll.netSalary.toLocaleString('en-IN')}` : '₹0.00',
+            status: latestPayroll?.status || 'Pending'
           }
         }
       }
@@ -429,51 +431,54 @@ exports.getTeacherProfile = async (req, res, next) => {
     if (staffId) {
       query.staffId = staffId;
     } else if (email) {
-      query.email = email;
-    } else {
-      query = { $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] };
+      query.email = email.toLowerCase();
+    } else if (req.user?.email) {
+      query.email = req.user.email.toLowerCase();
     }
 
-    let staff = await Staff.findOne(query);
+    let staff = null;
+    if (Object.keys(query).length > 0) {
+      staff = await Staff.findOne(query);
+    }
     if (!staff) {
       staff = await Staff.findOne() || {};
     }
 
-    const safeStaffId = staff.staffId || 'STF-101';
-    const safeName = staff.fullName || 'Amit Sharma';
-    const safeDesignation = staff.designation || 'Senior PGT Mathematics';
-    const safeDepartment = staff.department || 'Science & Math';
-    const safeEmail = staff.email || 'amit.sharma@school.edu';
-    const safePhone = staff.phone || '9876543210';
-    const safePhoto = staff.photo || 'https://i.pravatar.cc/150?img=11';
+    const safeStaffId = staff.staffId || '';
+    const safeName = staff.fullName || (req.user?.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : null) || 'Faculty Member';
+    const safeDesignation = staff.designation || 'Faculty';
+    const safeDepartment = staff.department || 'Academics';
+    const safeEmail = staff.email || req.user?.email || '';
+    const safePhone = staff.phone || '';
+    const safePhoto = staff.photo || '';
 
     // 1. Generate real QR code with verified payload
-    const qrCodeDataUrl = await generateStaffQRCode({
+    const qrCodeDataUrl = safeStaffId ? await generateStaffQRCode({
       staffId: safeStaffId,
       fullName: safeName,
       designation: safeDesignation,
       department: safeDepartment,
       email: safeEmail,
       phone: safePhone
-    });
+    }) : '';
 
     // 2. Generate real Code 128 barcode
-    const barcodeObj = generateCode128(safeStaffId);
+    const barcodeObj = safeStaffId ? generateCode128(safeStaffId) : { text: '', svg: '' };
 
     // 3. Fetch payroll details
-    const payrollRecords = await Payroll.find({ staffId: staff._id }).sort({ year: -1, month: -1 }).limit(6);
+    const payrollRecords = staff._id ? await Payroll.find({ staffId: staff._id }).sort({ year: -1, month: -1 }).limit(6) : [];
     const latestPayroll = payrollRecords[0] || {
-      basicSalary: 42000,
-      allowances: 12000,
-      deductions: 4000,
-      netSalary: 50000,
-      status: 'Paid',
-      month: 8,
-      year: 2026
+      basicSalary: 0,
+      allowances: 0,
+      deductions: 0,
+      netSalary: 0,
+      status: 'Pending',
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear()
     };
 
     // 4. Fetch leaves
-    const leaveRecords = await Leave.find({ staffId: staff._id }).sort({ createdAt: -1 });
+    const leaveRecords = staff._id ? await Leave.find({ staffId: staff._id }).sort({ createdAt: -1 }) : [];
 
     res.status(200).json({
       success: true,
@@ -481,112 +486,85 @@ exports.getTeacherProfile = async (req, res, next) => {
         personalInfo: {
           fullName: safeName,
           staffId: safeStaffId,
-          biometricId: staff.biometricId || 'BIO-9821',
-          role: 'Teacher',
+          biometricId: staff.biometricId || '',
+          role: staff.role || 'Teacher',
           designation: safeDesignation,
           department: safeDepartment,
-          gender: staff.gender || 'Male',
-          dateOfBirth: staff.dateOfBirth ? new Date(staff.dateOfBirth).toLocaleDateString('en-GB') : '19/10/1990',
-          dateOfJoining: staff.dateOfJoining ? new Date(staff.dateOfJoining).toLocaleDateString('en-GB') : '14/06/2021',
+          gender: staff.gender || '',
+          dateOfBirth: staff.dateOfBirth ? new Date(staff.dateOfBirth).toLocaleDateString('en-GB') : '',
+          dateOfJoining: staff.dateOfJoining ? new Date(staff.dateOfJoining).toLocaleDateString('en-GB') : '',
           email: safeEmail,
           phone: safePhone,
-          maritalStatus: staff.maritalStatus || 'Married',
-          fathersName: staff.fathersName || 'Ramesh Sharma',
-          mothersName: staff.mothersName || 'Sunita Sharma',
-          qualification: staff.qualification || 'M.Sc. Mathematics, B.Ed. (Gold Medalist)',
-          workExperience: staff.workExperience || '8+ Years Teaching Experience',
-          note: staff.note || 'Specialist in Senior Secondary Calculus, Algebra and IIT-JEE Foundation',
+          maritalStatus: staff.maritalStatus || '',
+          fathersName: staff.fathersName || '',
+          mothersName: staff.mothersName || '',
+          qualification: staff.qualification || '',
+          workExperience: staff.workExperience || '',
+          note: staff.note || '',
           photo: safePhoto
         },
         employmentDetails: {
-          employeeCode: staff.employeeCode || `EMP-${safeStaffId.replace(/[^0-9]/g, '') || '101'}`,
-          employmentType: staff.employmentType || 'Permanent / Full-Time',
-          status: 'Active',
-          confirmationDate: staff.confirmationDate ? new Date(staff.confirmationDate).toLocaleDateString('en-GB') : '14/12/2021',
-          reportingManager: 'Dr. Alok Verma (Principal)'
+          employeeCode: staff.employeeCode || safeStaffId,
+          employmentType: staff.employmentType || 'Permanent',
+          status: staff.status || 'Active',
+          confirmationDate: staff.confirmationDate ? new Date(staff.confirmationDate).toLocaleDateString('en-GB') : '',
+          reportingManager: staff.reportingManager || ''
         },
         emergencyContact: {
-          contactName: staff.emergencyContactName || 'Sunita Sharma (Mother)',
-          contactPhone: staff.emergencyContactPhone || '9876543299',
-          bloodGroup: staff.bloodGroup || 'O+'
+          contactName: staff.emergencyContactName || '',
+          contactPhone: staff.emergencyContactPhone || '',
+          bloodGroup: staff.bloodGroup || ''
         },
         addressDetails: {
-          currentAddress: staff.currentAddress || 'Flat 402, Royal Palms Residency, Civil Lines, Delhi - 110054',
-          permanentAddress: 'House 14, Tagore Garden, Model Town, Delhi - 110009'
+          currentAddress: staff.currentAddress || '',
+          permanentAddress: staff.permanentAddress || ''
         },
         bankDetails: {
           accountTitle: staff.bankDetails?.accountTitle || safeName,
-          bankName: staff.bankDetails?.bankName || 'HDFC Bank Ltd.',
-          branchName: staff.bankDetails?.branchName || 'Civil Lines Branch',
-          accountNumber: staff.bankDetails?.accountNumber || '50100492817291',
-          ifscCode: staff.bankDetails?.ifscCode || 'HDFC0001234'
+          bankName: staff.bankDetails?.bankName || '',
+          branchName: staff.bankDetails?.branchName || '',
+          accountNumber: staff.bankDetails?.accountNumber || '',
+          ifscCode: staff.bankDetails?.ifscCode || ''
         },
-        socialMedia: {
-          facebook: 'https://facebook.com/teacher.profile',
-          twitter: 'https://twitter.com/teacher_edu',
-          linkedin: 'https://linkedin.com/in/amit-sharma-math',
-          instagram: 'https://instagram.com/amit.math'
-        },
+        socialMedia: staff.socialMedia || {},
         payroll: {
-          basicSalary: '₹42,000.00',
-          hra: '₹10,500.00',
-          taAllowance: '₹2,500.00',
-          medicalAllowance: '₹2,000.00',
-          pfDeduction: '₹4,800.00',
-          tdsDeduction: '₹2,200.00',
-          netSalary: '₹50,000.00',
-          recentPayslips: [
-            { month: 'September, 2026', gross: '₹57,000.00', ded: '₹7,000.00', net: '₹50,000.00', status: 'Paid' },
-            { month: 'August, 2026', gross: '₹57,000.00', ded: '₹7,000.00', net: '₹50,000.00', status: 'Paid' },
-            { month: 'July, 2026', gross: '₹57,000.00', ded: '₹7,000.00', net: '₹50,000.00', status: 'Paid' },
-            { month: 'June, 2026', gross: '₹57,000.00', ded: '₹7,000.00', net: '₹50,000.00', status: 'Paid' }
-          ]
+          basicSalary: latestPayroll.basicSalary ? `₹${Number(latestPayroll.basicSalary).toLocaleString('en-IN')}.00` : '₹0.00',
+          hra: latestPayroll.hra ? `₹${Number(latestPayroll.hra).toLocaleString('en-IN')}` : '₹0.00',
+          taAllowance: '₹0.00',
+          medicalAllowance: '₹0.00',
+          pfDeduction: '₹0.00',
+          tdsDeduction: '₹0.00',
+          netSalary: latestPayroll.netSalary ? `₹${Number(latestPayroll.netSalary).toLocaleString('en-IN')}.00` : '₹0.00',
+          recentPayslips: payrollRecords.map(p => ({
+            month: `${new Date(p.year, (p.month || 1) - 1).toLocaleString('en-US', { month: 'long' })}, ${p.year}`,
+            gross: `₹${Number(p.grossSalary || p.netSalary || 0).toLocaleString('en-IN')}.00`,
+            ded: `₹${Number(p.totalDeductions || 0).toLocaleString('en-IN')}.00`,
+            net: `₹${Number(p.netSalary || 0).toLocaleString('en-IN')}.00`,
+            status: p.status || 'Paid'
+          }))
         },
         leaves: {
-          balances: [
-            { type: 'Casual Leave', total: 12, used: 3, remaining: 9, color: 'blue' },
-            { type: 'Medical Leave', total: 10, used: 1, remaining: 9, color: 'green' },
-            { type: 'Earned Leave', total: 15, used: 4, remaining: 11, color: 'indigo' },
-            { type: 'Unpaid Leave', total: 0, used: 0, remaining: 0, color: 'red' }
-          ],
-          history: leaveRecords.length > 0 ? leaveRecords.map(l => ({
-            type: l.leaveType || 'Casual Leave',
+          balances: [],
+          history: leaveRecords.map(l => ({
+            type: l.leaveType || 'Leave',
             from: new Date(l.startDate).toLocaleDateString('en-GB'),
             to: new Date(l.endDate).toLocaleDateString('en-GB'),
             days: Math.max(1, Math.ceil((new Date(l.endDate) - new Date(l.startDate)) / (1000 * 60 * 60 * 24)) + 1),
-            status: l.status || 'Approved',
+            status: l.status || 'Pending',
             stClass: l.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-          })) : [
-            { type: 'Casual Leave', from: '04 Oct 2026', to: '05 Oct 2026', days: 2, status: 'Approved', stClass: 'bg-green-100 text-green-700' },
-            { type: 'Medical Leave', from: '15 Sep 2026', to: '15 Sep 2026', days: 1, status: 'Approved', stClass: 'bg-green-100 text-green-700' },
-            { type: 'Casual Leave', from: '01 Aug 2026', to: '01 Aug 2026', days: 1, status: 'Approved', stClass: 'bg-green-100 text-green-700' }
-          ]
+          }))
         },
         attendance: {
-          present: 22,
-          absent: 1,
-          late: 1,
+          present: 0,
+          absent: 0,
+          late: 0,
           halfDay: 0,
-          totalWorkingDays: 24,
-          percentage: '92%'
+          totalWorkingDays: 0,
+          percentage: '0%'
         },
-        documents: [
-          { name: 'Aadhaar Card', status: 'Uploaded', verified: true, date: '15 Jun 2021' },
-          { name: 'PAN Card', status: 'Uploaded', verified: true, date: '15 Jun 2021' },
-          { name: 'Degree Certificate (M.Sc. & B.Ed.)', status: 'Uploaded', verified: true, date: '20 Jun 2021' },
-          { name: 'Experience Certificate', status: 'Uploaded', verified: true, date: '20 Jun 2021' },
-          { name: 'Police Verification Record', status: 'Uploaded', verified: true, date: '01 Jul 2021' }
-        ],
-        career: [
-          { year: '2023 - Present', role: 'Senior PGT Mathematics', org: 'ALL CORE SOLUTION', dept: 'Mathematics Department', type: 'Full Time' },
-          { year: '2019 - 2023', role: 'TGT Science & Mathematics', org: 'Apex International Academy', dept: 'Secondary Wing', type: 'Full Time' },
-          { year: '2016 - 2019', role: 'Assistant Lecturer', org: 'Kendriya Vidyalaya', dept: 'Mathematics Wing', type: 'Full Time' }
-        ],
-        appraisals: [
-          { year: '2025-26', rating: '4.8 / 5', inc: '₹5,000', status: 'Completed' },
-          { year: '2024-25', rating: '4.6 / 5', inc: '₹4,500', status: 'Completed' },
-          { year: '2026-27', rating: 'Outstanding', inc: 'Annual Review', status: 'In Progress' }
-        ],
+        documents: staff.documents || [],
+        career: staff.career || [],
+        appraisals: staff.appraisals || [],
         qrCode: qrCodeDataUrl,
         barcode: barcodeObj
       }
@@ -635,31 +613,32 @@ exports.getTeacherLoans = async (req, res, next) => {
     if (staffId) {
       query.staffId = staffId;
     } else if (email) {
-      query.email = email;
+      query.email = email.toLowerCase();
     } else if (req.user && req.user.email) {
-      query.email = req.user.email;
-    } else {
-      query = { $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] };
+      query.email = req.user.email.toLowerCase();
     }
 
-    let staff = await Staff.findOne(query);
+    let staff = null;
+    if (Object.keys(query).length > 0) {
+      staff = await Staff.findOne(query);
+    }
     if (!staff) {
       staff = await Staff.findOne() || {};
     }
 
-    const safeStaffId = staff.staffId || 'STF-101';
-    const safeStaffName = staff.fullName || 'Amit Sharma';
+    const safeStaffId = staff.staffId || '';
+    const safeStaffName = staff.fullName || 'Faculty Member';
 
     // Query loans by staff ObjectId, employeeCode, or staffName
     const loanQuery = {
       $or: [
         ...(staff._id ? [{ staff: staff._id }] : []),
-        { employeeCode: safeStaffId },
-        { staffName: safeStaffName }
+        ...(safeStaffId ? [{ employeeCode: safeStaffId }] : []),
+        ...(staff.fullName ? [{ staffName: safeStaffName }] : [])
       ]
     };
 
-    const loans = await StaffLoan.find(loanQuery).sort({ createdAt: -1 });
+    const loans = loanQuery.$or.length > 0 ? await StaffLoan.find(loanQuery).sort({ createdAt: -1 }) : [];
 
     // Populate dynamic schedule if repaymentSchedule is empty
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -717,10 +696,10 @@ exports.getTeacherLoans = async (req, res, next) => {
         monthlyEmiDeduction
       },
       staff: {
-        _id: staff._id,
+        _id: staff._id || null,
         staffId: safeStaffId,
         fullName: safeStaffName,
-        designation: staff.designation || 'Senior PGT Mathematics'
+        designation: staff.designation || 'Faculty'
       }
     });
   } catch (error) {
@@ -744,14 +723,15 @@ exports.applyTeacherLoan = async (req, res, next) => {
     if (staffId) {
       staffQuery.staffId = staffId;
     } else if (email) {
-      staffQuery.email = email;
+      staffQuery.email = email.toLowerCase();
     } else if (req.user && req.user.email) {
-      staffQuery.email = req.user.email;
-    } else {
-      staffQuery = { $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] };
+      staffQuery.email = req.user.email.toLowerCase();
     }
 
-    let staff = await Staff.findOne(staffQuery);
+    let staff = null;
+    if (Object.keys(staffQuery).length > 0) {
+      staff = await Staff.findOne(staffQuery);
+    }
     if (!staff) {
       staff = await Staff.findOne() || {};
     }
@@ -779,9 +759,9 @@ exports.applyTeacherLoan = async (req, res, next) => {
     }
 
     const loan = await StaffLoan.create({
-      staff: staff._id,
-      staffName: staff.fullName || 'Amit Sharma',
-      employeeCode: staff.staffId || 'STF-101',
+      staff: staff._id || null,
+      staffName: staff.fullName || 'Faculty Member',
+      employeeCode: staff.staffId || '',
       amount: parsedAmount,
       interestRate: 0,
       repaymentMonths,
@@ -816,14 +796,15 @@ exports.getTeacherAttendance = async (req, res, next) => {
     if (staffId) {
       query.staffId = staffId;
     } else if (email) {
-      query.email = email;
+      query.email = email.toLowerCase();
     } else if (req.user && req.user.email) {
-      query.email = req.user.email;
-    } else {
-      query = { $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] };
+      query.email = req.user.email.toLowerCase();
     }
 
-    let staff = await Staff.findOne(query);
+    let staff = null;
+    if (Object.keys(query).length > 0) {
+      staff = await Staff.findOne(query);
+    }
     if (!staff) {
       staff = await Staff.findOne();
     }
@@ -838,13 +819,13 @@ exports.getTeacherAttendance = async (req, res, next) => {
           late: 0,
           halfDay: 0,
           totalWorkingDays: 0,
-          percentage: '100%'
+          percentage: '0%'
         },
         records: [],
         teacher: {
           _id: null,
-          staffId: 'STF-101',
-          fullName: 'Staff Member',
+          staffId: '',
+          fullName: 'Faculty Member',
           designation: 'Faculty'
         }
       });
@@ -857,71 +838,17 @@ exports.getTeacherAttendance = async (req, res, next) => {
     const startOfMonth = new Date(selYear, selMonth - 1, 1);
     const endOfMonth = new Date(selYear, selMonth, 0, 23, 59, 59, 999);
 
-    let records = await StaffAttendance.find({
+    const records = await StaffAttendance.find({
       staff: staff._id,
       date: { $gte: startOfMonth, $lte: endOfMonth }
     }).sort({ date: -1 });
-
-    // Seed realistic attendance records if none exist in this month
-    if (!records || records.length === 0) {
-      const daysCount = selMonth === curDate.getMonth() + 1 && selYear === curDate.getFullYear() ? curDate.getDate() : endOfMonth.getDate();
-      const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const newRecords = [];
-
-      for (let dayNum = 1; dayNum <= daysCount; dayNum++) {
-        const d = new Date(selYear, selMonth - 1, dayNum);
-        const dayName = daysOfWeek[d.getDay()];
-        if (dayName === 'Sunday') continue; // Sunday off
-
-        let status = 'Present';
-        let checkIn = '08:15 AM';
-        let checkOut = '03:30 PM';
-        let remarks = 'Regular Shift Completed';
-
-        if (dayNum === 5) {
-          status = 'Absent';
-          checkIn = '—';
-          checkOut = '—';
-          remarks = 'Uninformed Absence';
-        } else if (dayNum === 10) {
-          status = 'Late';
-          checkIn = '08:35 AM';
-          remarks = 'Late by 20 minutes (Traffic)';
-        } else if (dayNum === 14) {
-          status = 'Half Day';
-          checkIn = '08:15 AM';
-          checkOut = '12:30 PM';
-          remarks = 'Approved Half Day';
-        }
-
-        newRecords.push({
-          staff: staff._id,
-          staffName: staff.fullName || 'Amit Sharma',
-          employeeCode: staff.staffId || 'STF-101',
-          date: d,
-          day: dayName,
-          checkIn,
-          checkOut,
-          status,
-          remarks
-        });
-      }
-
-      if (newRecords.length > 0) {
-        await StaffAttendance.insertMany(newRecords);
-        records = await StaffAttendance.find({
-          staff: staff._id,
-          date: { $gte: startOfMonth, $lte: endOfMonth }
-        }).sort({ date: -1 });
-      }
-    }
 
     const present = records.filter(r => r.status === 'Present').length;
     const absent = records.filter(r => r.status === 'Absent').length;
     const late = records.filter(r => r.status === 'Late').length;
     const halfDay = records.filter(r => r.status === 'Half Day').length;
     const totalWorkingDays = records.length;
-    const percentage = totalWorkingDays > 0 ? `${Math.round(((present + late * 0.8 + halfDay * 0.5) / totalWorkingDays) * 100)}%` : '100%';
+    const percentage = totalWorkingDays > 0 ? `${Math.round(((present + late * 0.8 + halfDay * 0.5) / totalWorkingDays) * 100)}%` : '0%';
 
     res.status(200).json({
       success: true,
@@ -937,9 +864,9 @@ exports.getTeacherAttendance = async (req, res, next) => {
       records,
       teacher: {
         _id: staff._id,
-        staffId: staff.staffId || 'STF-101',
-        fullName: staff.fullName || 'Amit Sharma',
-        designation: staff.designation || 'Senior PGT Mathematics'
+        staffId: staff.staffId || '',
+        fullName: staff.fullName || 'Faculty Member',
+        designation: staff.designation || 'Faculty'
       }
     });
   } catch (error) {
@@ -958,14 +885,15 @@ exports.getTeacherLeaves = async (req, res, next) => {
     if (staffId) {
       query.staffId = staffId;
     } else if (email) {
-      query.email = email;
+      query.email = email.toLowerCase();
     } else if (req.user && req.user.email) {
-      query.email = req.user.email;
-    } else {
-      query = { $or: [{ staffId: 'STF-101' }, { email: 'amit.sharma@school.edu' }] };
+      query.email = req.user.email.toLowerCase();
     }
 
-    let staff = await Staff.findOne(query);
+    let staff = null;
+    if (Object.keys(query).length > 0) {
+      staff = await Staff.findOne(query);
+    }
     if (!staff) {
       staff = await Staff.findOne() || {};
     }
@@ -977,7 +905,7 @@ exports.getTeacherLeaves = async (req, res, next) => {
     };
     if (status && status !== 'All') leaveQuery.status = status;
 
-    const leaves = await Leave.find(leaveQuery).sort({ createdAt: -1 });
+    const leaves = leaveQuery.$or.length > 0 ? await Leave.find(leaveQuery).sort({ createdAt: -1 }) : [];
 
     // Calculate balances
     const casualUsed = leaves.filter(l => l.leaveType?.includes('Casual') && l.status === 'Approved').reduce((acc, l) => {
@@ -994,9 +922,9 @@ exports.getTeacherLeaves = async (req, res, next) => {
     }, 0);
 
     const balances = [
-      { type: 'Casual Leave', total: 12, used: Math.min(12, casualUsed || 3), remaining: Math.max(0, 12 - (casualUsed || 3)), color: 'blue' },
-      { type: 'Medical Leave', total: 10, used: Math.min(10, medicalUsed || 1), remaining: Math.max(0, 10 - (medicalUsed || 1)), color: 'green' },
-      { type: 'Earned Leave', total: 15, used: Math.min(15, earnedUsed || 4), remaining: Math.max(0, 15 - (earnedUsed || 4)), color: 'indigo' },
+      { type: 'Casual Leave', total: 12, used: casualUsed, remaining: Math.max(0, 12 - casualUsed), color: 'blue' },
+      { type: 'Medical Leave', total: 10, used: medicalUsed, remaining: Math.max(0, 10 - medicalUsed), color: 'green' },
+      { type: 'Earned Leave', total: 15, used: earnedUsed, remaining: Math.max(0, 15 - earnedUsed), color: 'indigo' },
       { type: 'Unpaid Leave', total: 0, used: 0, remaining: 0, color: 'red' }
     ];
 
@@ -1006,9 +934,9 @@ exports.getTeacherLeaves = async (req, res, next) => {
       data: leaves,
       balances,
       teacher: {
-        _id: staff._id,
-        staffId: staff.staffId || 'STF-101',
-        fullName: staff.fullName || 'Amit Sharma'
+        _id: staff._id || null,
+        staffId: staff.staffId || '',
+        fullName: staff.fullName || 'Faculty Member'
       }
     });
   } catch (error) {
@@ -1030,7 +958,6 @@ exports.getTeacherTimetable = async (req, res, next) => {
     if (!staff && staffId) staff = await Staff.findOne({ staffId });
     if (!staff && teacherId && mongoose.Types.ObjectId.isValid(teacherId)) staff = await Staff.findById(teacherId);
     if (!staff && req.user?.email) staff = await Staff.findOne({ email: req.user.email.toLowerCase() });
-    if (!staff) staff = await Staff.findOne({ email: 'amit.sharma@school.edu' });
     if (!staff) staff = await Staff.findOne();
 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

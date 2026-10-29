@@ -294,6 +294,7 @@ const INITIAL_REPORTS = [
 
 // Helper to seed initial data
 const seedModerationData = async () => {
+  return;
   try {
     const convCount = await ModeratedConversation.countDocuments();
     if (convCount === 0) {
@@ -322,7 +323,7 @@ const seedModerationData = async () => {
     console.error('Error seeding chat moderation data:', err);
   }
 };
-seedModerationData();
+// seedModerationData();
 
 // ==============================================================
 // 1. POLICY & SETTINGS CONTROLLERS
@@ -432,10 +433,7 @@ exports.getConversations = async (req, res, next) => {
 
     let conversations = await ModeratedConversation.find(query).sort({ lastActivityAt: -1 });
 
-    if (conversations.length === 0 && Object.keys(query).length === 0) {
-      await seedModerationData();
-      conversations = await ModeratedConversation.find().sort({ lastActivityAt: -1 });
-    }
+    // No auto-seeding
 
     res.status(200).json({
       success: true,
@@ -626,10 +624,7 @@ exports.getReports = async (req, res, next) => {
 
     let reports = await ModerationReport.find(query).sort({ createdAt: -1 });
 
-    if (reports.length === 0 && Object.keys(query).length === 0) {
-      await seedModerationData();
-      reports = await ModerationReport.find().sort({ createdAt: -1 });
-    }
+    // No auto-seeding
 
     res.status(200).json({
       success: true,

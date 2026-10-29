@@ -16,38 +16,7 @@ exports.getDevices = async (req, res, next) => {
     let query = {};
     if (type && type !== 'All') query.deviceType = type;
     if (status && status !== 'Any Status') query.status = status;
-    
-    const totalCount = await DeviceRegistry.countDocuments();
-    if (totalCount === 0) {
-      await DeviceRegistry.insertMany([
-        {
-          deviceName: 'Main Gate Biometric Terminal',
-          ipAddress: '192.168.1.201',
-          deviceType: 'Biometric',
-          integrationMode: 'cloud',
-          brand: 'ZKTeco uFace800',
-          serialNumber: 'ZK-UF-984321',
-          location: 'Campus Main Gate 1',
-          port: 4370,
-          status: 'Online',
-          todayPunches: 142,
-          lastSync: new Date()
-        },
-        {
-          deviceName: 'Staff Academic Block Terminal',
-          ipAddress: '192.168.1.205',
-          deviceType: 'Fingerprint',
-          integrationMode: 'agent',
-          brand: 'eSSL SilkBio-101TC',
-          serialNumber: 'ESSL-SB-4402',
-          location: 'Teacher Faculty Lounge',
-          port: 4370,
-          status: 'Online',
-          todayPunches: 86,
-          lastSync: new Date()
-        }
-      ]);
-    }
+
 
     const devices = await DeviceRegistry.find(query).sort({ updatedAt: -1, createdAt: -1 });
     res.status(200).json({ success: true, count: devices.length, data: devices });

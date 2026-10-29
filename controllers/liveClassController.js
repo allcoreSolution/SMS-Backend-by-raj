@@ -4,8 +4,7 @@ const AcademicClass = require('../models/AcademicClass');
 
 // Seed helper if no classes exist
 const autoSeedClassesIfEmpty = async () => {
-  const count = await LiveClass.countDocuments();
-  if (count > 0) return;
+  return;
 
   const now = new Date();
   const todayMorning = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30);

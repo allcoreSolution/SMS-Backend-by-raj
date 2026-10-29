@@ -20,8 +20,8 @@ const CODE128_PATTERNS = [
  * @param {string} text - text to encode (e.g. "STF-101")
  * @returns {object} { code, pattern, bars: [{ x, width }], totalWidth, svg }
  */
-const generateCode128 = (text = 'STF-101') => {
-  const cleanText = String(text || 'STF-101').trim();
+const generateCode128 = (text = 'STAFF') => {
+  const cleanText = String(text || 'STAFF').trim();
   const startCode = 104; // Start B
   let checksum = startCode;
   const codes = [startCode];
@@ -78,12 +78,12 @@ const generateStaffQRCode = async (staffData = {}) => {
     const qrPayload = JSON.stringify({
       org: "ALL CORE SOLUTION",
       type: "STAFF_ID_VERIFICATION",
-      staffId: staffData.staffId || "STF-101",
-      name: staffData.fullName || staffData.name || "Amit Sharma",
-      designation: staffData.designation || "Senior PGT Mathematics",
-      department: staffData.department || "Science & Math",
-      email: staffData.email || "amit.sharma@school.edu",
-      phone: staffData.phone || "9876543210",
+      staffId: staffData.staffId || "STAFF",
+      name: staffData.fullName || staffData.name || "Faculty Member",
+      designation: staffData.designation || "Faculty",
+      department: staffData.department || "Academics",
+      email: staffData.email || "",
+      phone: staffData.phone || "",
       status: "Active",
       verifiedAt: new Date().toISOString()
     }, null, 2);
@@ -103,7 +103,7 @@ const generateStaffQRCode = async (staffData = {}) => {
   } catch (error) {
     console.error('Error generating QR code:', error);
     // Fallback simple QR
-    return await QRCode.toDataURL(staffData.staffId || 'STF-101', { margin: 2, width: 200 });
+    return await QRCode.toDataURL(staffData.staffId || 'STAFF', { margin: 2, width: 200 });
   }
 };
 

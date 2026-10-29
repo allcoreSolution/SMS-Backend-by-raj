@@ -17,6 +17,7 @@ const deleteFileFromDisk = (relativePath) => {
 
 // Seed realistic homework assignments if collection is empty
 const seedDefaultHomework = async () => {
+  return;
   try {
     const cls = await AcademicClass.findOne({ className: 'Class I' }) || await AcademicClass.findOne();
     const sec = await AcademicSection.findOne({ sectionName: 'A' }) || await AcademicSection.findOne();
@@ -143,10 +144,7 @@ const seedDefaultHomework = async () => {
 // GET Homework with student submission state
 exports.getHomework = async (req, res, next) => {
   try {
-    const count = await Homework.countDocuments();
-    if (count === 0) {
-      await seedDefaultHomework();
-    }
+
 
     const { classId, sectionId, subjectId, studentId, status } = req.query;
     let query = {};

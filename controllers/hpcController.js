@@ -3,6 +3,7 @@ const Student = require('../models/Student');
 
 // Seed sample activities and progress cards if collections are empty
 const seedHPCIfEmpty = async () => {
+  return;
   try {
     const actCount = await HPCActivity.countDocuments();
     if (actCount === 0) {
@@ -200,7 +201,7 @@ const seedHPCIfEmpty = async () => {
     console.warn('HPC seed error:', err.message);
   }
 };
-seedHPCIfEmpty();
+// seedHPCIfEmpty();
 
 // ==============================================================
 // 1. GET HPC DASHBOARD STATS

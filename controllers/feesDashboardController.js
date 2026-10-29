@@ -14,7 +14,14 @@ const getExpectedAmount = (assignRecord) => {
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const assigned = await AssignFee.find()
+    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+    let studentFilter = {};
+    if (tenantId && !req.isDemoAdmin) {
+      const tenantStudentIds = await Student.find({ tenant: tenantId }).distinct('_id');
+      studentFilter = { student: { $in: tenantStudentIds } };
+    }
+
+    const assigned = await AssignFee.find(studentFilter)
       .populate({
         path: 'feeGroup',
         populate: { path: 'feeTypes.feeType' }
@@ -24,7 +31,7 @@ exports.getDashboardStats = async (req, res) => {
         populate: { path: 'classId' }
       });
 
-    const collections = await FeeCollection.find()
+    const collections = await FeeCollection.find(studentFilter)
       .populate('discount')
       .populate({
         path: 'feeGroup',

@@ -224,30 +224,7 @@ exports.getSubscriptionHistory = async (req, res) => {
   try {
     let invoices = await SubscriptionInvoice.find().sort({ createdAt: -1 });
     
-    // Auto-seed initial invoice if empty
-    if (invoices.length === 0) {
-      await SubscriptionInvoice.create([
-        {
-          orderId: '#order_SrOv3QNEPhwD2n',
-          plan: 'Growth Plan',
-          amount: 10000,
-          billingCycle: 'Yearly',
-          method: 'Razorpay',
-          status: 'Paid',
-          transactionId: 'TXN_98A4BC21D0'
-        },
-        {
-          orderId: '#order_K8mF2qP09zA1',
-          plan: 'Basic Plan',
-          amount: 5000,
-          billingCycle: 'Monthly',
-          method: 'UPI',
-          status: 'Paid',
-          transactionId: 'TXN_44E89F0A12'
-        }
-      ]);
-      invoices = await SubscriptionInvoice.find().sort({ createdAt: -1 });
-    }
+    // No auto-seed of invoices
 
     return res.status(200).json({
       success: true,
@@ -265,42 +242,7 @@ exports.getAuditTrail = async (req, res) => {
     const setting = await GlobalSetting.findOne({ key: 'audit_trail' });
     let logs = setting?.value || [];
 
-    if (logs.length === 0) {
-      logs = [
-        {
-          id: 1,
-          user: 'School Admin',
-          activity: 'Updated',
-          platform: 'Web Console',
-          date: new Date().toLocaleString(),
-          eventTitle: 'Updated School Profile & General Branding Configuration.',
-          changes: [{ field: 'School Name', from: 'ALL CORE SOLUTION', to: 'Greenwood International School' }]
-        },
-        {
-          id: 2,
-          user: 'School Admin',
-          activity: 'Updated',
-          platform: 'Web Console',
-          date: new Date(Date.now() - 3600000).toLocaleString(),
-          eventTitle: 'Configured Payment Gateway credentials for Online Fee Collection.',
-          changes: [{ field: 'Provider', from: 'None', to: 'Razorpay' }]
-        },
-        {
-          id: 3,
-          user: 'Super Admin',
-          activity: 'Renewed',
-          platform: 'Billing System',
-          date: new Date(Date.now() - 86400000).toLocaleString(),
-          eventTitle: 'Activated Annual Growth Subscription License.',
-          changes: []
-        }
-      ];
-      await GlobalSetting.findOneAndUpdate(
-        { key: 'audit_trail' },
-        { key: 'audit_trail', value: logs },
-        { upsert: true }
-      );
-    }
+    // Return existing logs or empty array
 
     return res.status(200).json({
       success: true,

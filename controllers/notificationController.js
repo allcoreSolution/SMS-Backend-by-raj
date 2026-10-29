@@ -1,64 +1,7 @@
 const Notification = require('../models/Notification');
 
-// Seed initial notifications for teachers if none exist
-const seedNotificationsIfEmpty = async () => {
-  try {
-    const count = await Notification.countDocuments();
-    if (count === 0) {
-      await Notification.insertMany([
-        {
-          title: 'Term 1 Exam Schedule Finalized',
-          message: 'Mid-Term assessment date sheet for Classes VI-X is published. Verify question papers.',
-          type: 'exam',
-          priority: 'urgent',
-          targetRole: 'Teacher',
-          link: '/online-exams',
-          isRead: false
-        },
-        {
-          title: 'Student Leave Applications',
-          message: '2 students from Class 10-A have submitted medical leave requests awaiting recommendation.',
-          type: 'leave',
-          priority: 'high',
-          targetRole: 'Teacher',
-          link: '/apply-leave',
-          isRead: false
-        },
-        {
-          title: 'Holistic Progress Card (HPC) Due',
-          message: '3-Domain competency reviews for Class VI learners are pending teacher completion.',
-          type: 'hpc',
-          priority: 'normal',
-          targetRole: 'Teacher',
-          link: '/progress-cards',
-          isRead: false
-        },
-        {
-          title: 'Daily Attendance Reminder',
-          message: 'Morning period 1 attendance has been successfully synced with the master register.',
-          type: 'attendance',
-          priority: 'normal',
-          targetRole: 'Teacher',
-          link: '/student-attendance',
-          isRead: false
-        },
-        {
-          title: 'Parent-Teacher Meeting (PTM)',
-          message: 'PTM slots for upcoming Saturday have been scheduled and notified to parents.',
-          type: 'system',
-          priority: 'high',
-          targetRole: 'Teacher',
-          link: '/ptm',
-          isRead: true,
-          readAt: new Date()
-        }
-      ]);
-    }
-  } catch (err) {
-    console.warn('Notification seed error:', err.message);
-  }
-};
-seedNotificationsIfEmpty();
+// Notifications helper (no auto-seed)
+const seedNotificationsIfEmpty = async () => {};
 
 // @desc    Get all notifications with unread count
 // @route   GET /api/notifications
