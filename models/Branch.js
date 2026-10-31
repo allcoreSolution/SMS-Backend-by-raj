@@ -9,10 +9,10 @@ const branchSchema = new mongoose.Schema({
   principalName: { type: String },
   subscriptionPlan: { type: String, enum: ['Basic', 'Pro', 'Enterprise'], default: 'Basic' },
   status: { type: String, enum: ['Active', 'Suspended', 'Inactive', 'Pending'], default: 'Active' },
-  students: { type: Number, default: 500 },
-  staff: { type: Number, default: 35 },
-  attendance: { type: String, default: '95%' },
-  collected: { type: String, default: '₹5,50,000' },
+  students: { type: Number, default: 0 },
+  staff: { type: Number, default: 0 },
+  attendance: { type: String, default: '0%' },
+  collected: { type: String, default: '₹0' },
   establishedDate: { type: Date }
 }, { timestamps: true });
 

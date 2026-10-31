@@ -36,9 +36,11 @@ const createStaff = async (req, res) => {
     // Map role string to Role ObjectId
     if (staffData.role && !mongoose.Types.ObjectId.isValid(staffData.role)) {
       const Role = require('../models/Role');
-      const roleDoc = await Role.findOne({ name: staffData.role });
-      if (roleDoc) staffData.role = roleDoc._id;
-      else return res.status(400).json({ success: false, message: `Role '${staffData.role}' not found in database.` });
+      let roleDoc = await Role.findOne({ name: staffData.role });
+      if (!roleDoc) {
+        roleDoc = await Role.create({ name: staffData.role, description: `${staffData.role} role` });
+      }
+      staffData.role = roleDoc._id;
     }
 
     const exists = await Staff.findOne({ $or: [{ staffId: staffData.staffId }, { email: staffData.email }] });

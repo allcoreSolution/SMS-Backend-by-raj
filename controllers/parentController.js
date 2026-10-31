@@ -4713,49 +4713,9 @@ exports.getStudentLeaveDashboard = async (req, res) => {
       ]
     }).sort({ createdAt: -1 });
 
-    // Seed realistic student leave applications if none found
-    if (studentLeaves.length === 0) {
-      studentLeaves = [
-        await Leave.create({
-          applicantType: 'Student',
-          studentId: activeStudent?._id,
-          leaveCode: 'LVE-2026-0814',
-          leaveType: 'Medical / Sick Leave',
-          startDate: new Date('2026-09-14'),
-          endDate: new Date('2026-09-15'),
-          daysCount: 2,
-          reason: 'Severe seasonal viral flu and fever. Advised complete bed rest by pediatrician.',
-          status: 'Approved',
-          remarks: 'Approved by Class Teacher Anita Roy. Medical fitness prescription verified upon return.',
-          appliedBy: `${parentName} (Father)`
-        }),
-        await Leave.create({
-          applicantType: 'Student',
-          studentId: activeStudent?._id,
-          leaveCode: 'LVE-2026-0928',
-          leaveType: 'Family Function / Domestic',
-          startDate: new Date('2026-09-28'),
-          endDate: new Date('2026-09-28'),
-          daysCount: 1,
-          reason: 'Attending cousin’s religious ceremony in ancestral hometown with family.',
-          status: 'Approved',
-          remarks: 'Approved by Academic Section Incharge.',
-          appliedBy: `${parentName} (Father)`
-        }),
-        await Leave.create({
-          applicantType: 'Student',
-          studentId: activeStudent?._id,
-          leaveCode: 'LVE-2026-1014',
-          leaveType: 'Medical / Sick Leave',
-          startDate: new Date('2026-10-21'),
-          endDate: new Date('2026-10-22'),
-          daysCount: 2,
-          reason: 'Dental tooth extraction surgery and scheduled follow-up orthodontic checkup.',
-          status: 'Pending',
-          remarks: 'Application submitted online. Under review by Class Teacher.',
-          appliedBy: `${parentName} (Father)`
-        })
-      ];
+    // Clean state - no dummy seed
+    if (!studentLeaves) {
+      studentLeaves = [];
     }
 
     // 3. Compute Leave Balance & Statistics

@@ -24,7 +24,7 @@ const standardFields = [
   'studentPhone', 'studentEmail', 'studentPhoto', 'documents', 
   'bloodGroup', 'height', 'weight', 'allergies', 'medicalHistory',
   'fatherName', 'fatherPhone', 'motherName', 'motherPhone', 'status',
-  'classId', 'sectionId', 'parentId', 'portalPassword', 'studentPassword', 'parentPassword'
+  'classId', 'sectionId', 'parentId', 'password', 'portalPassword', 'studentPassword', 'parentPassword'
 ];
 
 // @desc    Register a new student admission
@@ -107,6 +107,7 @@ const createStudent = async (req, res) => {
     const student = await Student.create(studentData);
 
     // Auto-create/link Parent record for Student & Parent Portal Access
+    const studentPass = studentData.password || studentData.studentPassword || studentData.parentPassword || 'secret_access_24';
     if (studentData.fatherPhone || studentData.studentPhone) {
       try {
         const phone = (studentData.fatherPhone || studentData.studentPhone).trim();
@@ -118,7 +119,7 @@ const createStudent = async (req, res) => {
             phone,
             email: studentData.studentEmail || '',
             loginId: student.admissionNo || student.aparId,
-            password: studentData.parentPassword || 'secret_access_24',
+            password: studentPass,
             children: [student._id],
             status: 'Active'
           });
@@ -126,9 +127,7 @@ const createStudent = async (req, res) => {
           if (!parent.children.includes(student._id)) {
             parent.children.push(student._id);
           }
-          if (studentData.parentPassword) {
-            parent.password = studentData.parentPassword;
-          }
+          parent.password = studentPass;
           await parent.save();
         }
         student.parentId = parent._id;
@@ -136,6 +135,32 @@ const createStudent = async (req, res) => {
       } catch (parentErr) {
         console.warn('Auto-parent creation info:', parentErr.message);
       }
+    }
+
+    // Auto-create/link Student User record for portal login
+    try {
+      const Role = require('../models/Role');
+      const User = require('../models/User');
+      let studentRole = await Role.findOne({ name: 'Student' });
+      if (!studentRole) {
+        studentRole = await Role.create({ name: 'Student', permissions: [], description: 'Student Portal User' });
+      }
+      const studentUsername = student.admissionNo || student.aparId;
+      const studentEmail = student.studentEmail || `${studentUsername.toLowerCase()}@school.edu`;
+      let user = await User.findOne({ $or: [{ username: studentUsername }, { email: studentEmail }] });
+      if (!user) {
+        await User.create({
+          username: studentUsername,
+          email: studentEmail,
+          password: studentPass,
+          role: studentRole._id
+        });
+      } else {
+        user.password = studentPass;
+        await user.save();
+      }
+    } catch (uErr) {
+      console.warn('Student User account info:', uErr.message);
     }
 
     return res.status(201).json({

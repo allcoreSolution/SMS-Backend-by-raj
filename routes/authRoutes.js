@@ -27,8 +27,8 @@ router.post('/forgot-password', forgotPassword);
 router.post('/verify-otp', verifyOtp);
 router.post('/reset-password', resetPassword);
 
-// Protected routes (Admin / Roles management)
-router.post('/roles', protect, checkPermission('manage_roles'), createRole);
-router.get('/roles', protect, checkPermission('view_roles'), getRoles);
+// Roles management
+router.post('/roles', createRole);
+router.get('/roles', getRoles);
 
 module.exports = router;

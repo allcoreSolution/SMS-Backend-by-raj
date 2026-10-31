@@ -7,7 +7,8 @@ const {
   StaffSalary,
   AppraisalCycle,
   AppraisalCriterion,
-  StaffAppraisal
+  StaffAppraisal,
+  StaffAttendance
 } = require('../models/HR');
 const Staff = require('../models/Staff');
 const Leave = require('../models/Leave');
@@ -30,6 +31,27 @@ exports.getHRDashboardStats = async (req, res, next) => {
     ]);
     const totalLoanBalance = loansAgg[0]?.total || 0;
 
+    // Monthly payroll estimate from actual staff salary configurations or payroll records
+    let monthlyPayrollEstimate = 0;
+    try {
+      const salaries = await StaffSalary.find();
+      if (salaries.length > 0) {
+        monthlyPayrollEstimate = salaries.reduce((sum, s) => sum + (Number(s.netSalary || s.basicSalary) || 0), 0);
+      }
+    } catch (_) {}
+
+    // Attendance rate calculation from actual Staff Attendance records
+    let attendanceRate = '0%';
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayLogs = await StaffAttendance.find({ date: { $gte: today } });
+      if (todayLogs.length > 0) {
+        const present = todayLogs.filter(a => a.status === 'Present').length;
+        attendanceRate = ((present / todayLogs.length) * 100).toFixed(1) + '%';
+      }
+    } catch (_) {}
+
     // Recent Staff
     const recentStaff = await Staff.find()
       .sort({ createdAt: -1 })
@@ -42,11 +64,14 @@ exports.getHRDashboardStats = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(6);
 
-    // Department Distribution
-    const departmentList = await Department.find({ status: 'Active' }).select('name staffCount');
-    const deptChart = departmentList.map(d => ({
-      name: d.name,
-      staffCount: d.staffCount || 1
+    // Department Distribution - real count per department from Staff collection
+    const departmentList = await Department.find({ status: 'Active' }).select('name');
+    const deptChart = await Promise.all(departmentList.map(async d => {
+      const count = await Staff.countDocuments({ department: d.name });
+      return {
+        name: d.name,
+        staffCount: count
+      };
     }));
 
     // Leave Status Breakdown
@@ -61,14 +86,14 @@ exports.getHRDashboardStats = async (req, res, next) => {
       data: {
         stats: {
           totalStaff,
-          departmentsCount: departmentsCount || 6,
-          designationsCount: designationsCount || 8,
+          departmentsCount,
+          designationsCount,
           pendingLeaves,
           approvedLeaves,
           activeLoans,
           totalLoanBalance,
-          monthlyPayrollEstimate: totalStaff * 42000,
-          attendanceRate: '94.8%'
+          monthlyPayrollEstimate,
+          attendanceRate
         },
         deptChart,
         leaveStatusData,

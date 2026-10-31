@@ -144,20 +144,19 @@ exports.getBranchDashboardStats = async (req, res, next) => {
       const feeAggr = await FeeCollection.aggregate([
         { $group: { _id: null, total: { $sum: '$amountPaid' } } }
       ]);
-      if (feeAggr.length > 0) totalFee = feeAggr[0].total;
+      if (feeAggr.length > 0 && feeAggr[0].total) totalFee = feeAggr[0].total;
     } catch (_) {}
 
     // Recent leads for cross-panel visibility
     const recentLeads = await Lead.find().sort({ createdAt: -1 }).limit(5);
 
-    // Decorate branches with live or realistic operational metrics
-    const decoratedBranches = branches.map((b) => {
-      const seed = (b.branchCode || b.branchName || 'branch').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-      const branchStudents = 600 + (seed % 650);
-      const branchStaff = 35 + (seed % 40);
-      const attendancePct = (91 + (seed % 7)).toFixed(1) + '%';
-      const collectedRaw = 450000 + (seed * 850) % 600000;
-      const collectedFormatted = '₹' + (collectedRaw / 100000).toFixed(2) + ' Lakhs';
+    // Map real branch records without fake seed multipliers
+    const mappedBranches = branches.map((b) => {
+      const branchStudents = Number(b.students) || 0;
+      const branchStaff = Number(b.staff) || 0;
+      const attendancePct = b.attendance || '0%';
+      const collectedFormatted = b.collected || '₹0';
+      const collectedRaw = 0;
 
       return {
         _id: b._id,
@@ -173,32 +172,32 @@ exports.getBranchDashboardStats = async (req, res, next) => {
         address: b.address,
         principal: b.principalName || 'Principal',
         principalName: b.principalName || 'Principal',
-        plan: b.subscriptionPlan || 'Enterprise Plan',
-        subscriptionPlan: b.subscriptionPlan || 'Enterprise',
+        plan: b.subscriptionPlan ? (b.subscriptionPlan.includes('Plan') ? b.subscriptionPlan : b.subscriptionPlan + ' Plan') : 'Basic Plan',
+        subscriptionPlan: b.subscriptionPlan || 'Basic',
         status: b.status || 'Active',
         students: branchStudents,
         staff: branchStaff,
         attendance: attendancePct,
         collected: collectedFormatted,
         collectedRaw: collectedRaw,
-        renews: '15 Oct, 2027',
-        reg: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan, 2025',
-        domain: `${(b.branchCode || 'branch').toLowerCase().replace(/[^a-z0-9]/g, '')}.schoolerp.com`
+        renews: '—',
+        reg: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+        domain: b.branchCode ? (b.branchCode.toLowerCase().replace(/[^a-z0-9]/g, '') + '.schoolerp.com') : 'branch.schoolerp.com'
       };
     });
 
-    const sumStudents = decoratedBranches.reduce((s, b) => s + b.students, 0);
-    const sumStaff = decoratedBranches.reduce((s, b) => s + b.staff, 0);
-    const sumCollected = decoratedBranches.reduce((s, b) => s + b.collectedRaw, 0);
+    const sumStudents = mappedBranches.reduce((s, b) => s + b.students, 0);
+    const sumStaff = mappedBranches.reduce((s, b) => s + b.staff, 0);
+    const sumCollected = mappedBranches.reduce((s, b) => s + b.collectedRaw, 0);
 
     const stats = {
       branchesCount: totalBranches,
       activeBranches,
-      totalStudents: sumStudents > 0 ? sumStudents : (studentCount > 0 ? studentCount : 3840),
-      totalStaff: sumStaff > 0 ? sumStaff : (staffCount > 0 ? staffCount : 250),
-      totalCollected: totalFee > 0 ? '₹' + (totalFee / 100000).toFixed(2) + ' Lakhs' : '₹' + (sumCollected / 100000).toFixed(2) + ' Lakhs',
+      totalStudents: sumStudents > 0 ? sumStudents : studentCount,
+      totalStaff: sumStaff > 0 ? sumStaff : staffCount,
+      totalCollected: totalFee > 0 ? ('₹' + (totalFee / 100000).toFixed(2) + ' Lakhs') : '₹0',
       leadsCount,
-      branches: decoratedBranches,
+      branches: mappedBranches,
       recentLeads,
       timestamp: new Date()
     };

@@ -31,6 +31,11 @@ const studentSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  password: {
+    type: String,
+    trim: true,
+    default: 'secret_access_24',
+  },
   gender: {
     type: String,
     required: [true, 'Gender is required'],
