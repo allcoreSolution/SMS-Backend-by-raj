@@ -151,6 +151,18 @@ const staffSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tenant',
     index: true,
+  },
+  schoolName: {
+    type: String,
+    trim: true,
+  },
+  schoolLogo: {
+    type: String,
+    trim: true,
+  },
+  schoolShortName: {
+    type: String,
+    trim: true,
   }
 }, {
   timestamps: true,

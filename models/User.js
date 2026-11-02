@@ -31,6 +31,18 @@ const userSchema = new mongoose.Schema({
     ref: 'Tenant',
     required: false, // SuperAdmin won't have a tenant
   },
+  schoolName: {
+    type: String,
+    trim: true,
+  },
+  schoolLogo: {
+    type: String,
+    trim: true,
+  },
+  schoolShortName: {
+    type: String,
+    trim: true,
+  },
   isActive: {
     type: Boolean,
     default: true,

@@ -231,6 +231,18 @@ const studentSchema = new mongoose.Schema({
     of: mongoose.Schema.Types.Mixed,
     default: {}
   },
+  schoolName: {
+    type: String,
+    trim: true,
+  },
+  schoolLogo: {
+    type: String,
+    trim: true,
+  },
+  schoolShortName: {
+    type: String,
+    trim: true,
+  },
   tenant: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tenant',

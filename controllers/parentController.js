@@ -13,7 +13,60 @@ const StudentHealthRecord = require('../models/StudentHealthRecord');
 const { IssuedCertificate, CertificateTemplate } = require('../models/Certificate');
 const { Visitor, Appointment, GatePass } = require('../models/FrontOffice');
 const Leave = require('../models/Leave');
+const Tenant = require('../models/Tenant');
+const GlobalSetting = require('../models/GlobalSetting');
 const mongoose = require('mongoose');
+
+// Helper to resolve school profile and logo for any student
+const resolveSchoolForStudent = async (studentDoc) => {
+  if (!studentDoc) {
+    return {
+      name: 'ACS-SCHOOL',
+      shortName: 'Smart Campus',
+      logo: null,
+      address: '',
+      city: ''
+    };
+  }
+
+  let sName = studentDoc.schoolName || (studentDoc.extraFields && (typeof studentDoc.extraFields.get === 'function' ? studentDoc.extraFields.get('schoolName') : studentDoc.extraFields.schoolName));
+  let sLogo = studentDoc.schoolLogo || (studentDoc.extraFields && (typeof studentDoc.extraFields.get === 'function' ? studentDoc.extraFields.get('schoolLogo') : studentDoc.extraFields.schoolLogo));
+  let sShort = studentDoc.schoolShortName || (studentDoc.extraFields && (typeof studentDoc.extraFields.get === 'function' ? studentDoc.extraFields.get('schoolShortName') : studentDoc.extraFields.schoolShortName));
+  let sAddress = '';
+  let sCity = '';
+
+  if (studentDoc.tenant) {
+    let t = studentDoc.tenant;
+    if (!t.schoolName && mongoose.Types.ObjectId.isValid(t)) {
+      t = await Tenant.findById(t);
+    }
+    if (t && t.schoolName) {
+      sName = sName || t.schoolName;
+      sLogo = sLogo || t.logoUrl;
+      sShort = sShort || t.subdomain || t.schoolName;
+      sAddress = t.address || '';
+      sCity = t.city || '';
+    }
+  }
+
+  if (!sName) {
+    const glob = await GlobalSetting.findOne({ key: 'school_profile' });
+    if (glob && glob.value) {
+      sName = glob.value.schoolName || 'Greenwood International School';
+      sLogo = glob.value.logoUrl || glob.value.logo || null;
+      sShort = glob.value.shortName || 'Smart Campus';
+      sAddress = glob.value.address || '';
+    }
+  }
+
+  return {
+    name: (sName || 'School ERP').trim(),
+    shortName: (sShort || 'Smart Campus').trim(),
+    logo: sLogo || null,
+    address: sAddress || '',
+    city: sCity || ''
+  };
+};
 const fs = require('fs');
 const path = require('path');
 const QRCode = require('qrcode');
@@ -239,7 +292,8 @@ exports.getParentPortalDashboard = async (req, res) => {
       if (mongoose.Types.ObjectId.isValid(candidateId)) {
         activeStudent = await Student.findById(candidateId)
           .populate('classId', 'className numericValue')
-          .populate('sectionId', 'sectionName');
+          .populate('sectionId', 'sectionName')
+          .populate('tenant');
       }
       if (!activeStudent) {
         const idTrimmed = String(candidateId).trim();
@@ -323,7 +377,8 @@ exports.getParentPortalDashboard = async (req, res) => {
       if (targetParent && targetParent.children && targetParent.children.length > 0) {
         childrenList = await Student.find({ _id: { $in: targetParent.children } })
           .populate('classId', 'className numericValue')
-          .populate('sectionId', 'sectionName');
+          .populate('sectionId', 'sectionName')
+          .populate('tenant');
       }
 
       // If parent has no linked children, find students by parentId or phone
@@ -344,7 +399,8 @@ exports.getParentPortalDashboard = async (req, res) => {
         childrenList = await Student.find({ status: { $ne: 'Exited' } })
           .limit(3)
           .populate('classId', 'className numericValue')
-          .populate('sectionId', 'sectionName');
+          .populate('sectionId', 'sectionName')
+          .populate('tenant');
       }
 
       activeStudent = childrenList[0];
@@ -354,10 +410,11 @@ exports.getParentPortalDashboard = async (req, res) => {
       return res.status(404).json({ success: false, message: 'No student found' });
     }
 
-    // 4. Format Children List for UI
-    const formattedChildren = childrenList.map(c => {
+    // 4. Format Children List for UI (with dynamic school resolution per child)
+    const formattedChildren = await Promise.all(childrenList.map(async (c) => {
       const cls = c.classId?.className || 'Class I';
       const sec = c.sectionId?.sectionName || 'A';
+      const cSchool = await resolveSchoolForStudent(c);
       return {
         _id: c._id.toString(),
         id: c._id.toString(),
@@ -371,11 +428,16 @@ exports.getParentPortalDashboard = async (req, res) => {
         admn: c.admissionNo || c.aparId || 'N/A',
         roll: c.rollNo || '-',
         photo: c.studentPhoto || null,
-        dob: c.dateOfBirth ? new Date(c.dateOfBirth).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '15 Aug, 2014'
+        dob: c.dateOfBirth ? new Date(c.dateOfBirth).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '15 Aug, 2014',
+        school: cSchool,
+        schoolName: cSchool?.name,
+        schoolLogo: cSchool?.logo,
+        schoolShortName: cSchool?.shortName
       };
-    });
+    }));
 
-    // 5. Active Student Profile
+    // 5. Active Student Profile & School Profile
+    const activeSchool = await resolveSchoolForStudent(activeStudent);
     const clsName = activeStudent.classId?.className || 'Class I';
     const secName = activeStudent.sectionId?.sectionName || 'A';
     const studentProfile = {
@@ -404,7 +466,11 @@ exports.getParentPortalDashboard = async (req, res) => {
       motherPhone: activeStudent.motherPhone || '',
       studentPhone: activeStudent.studentPhone || '',
       studentEmail: activeStudent.studentEmail || '',
-      address: targetParent?.address || ''
+      address: targetParent?.address || '',
+      school: activeSchool,
+      schoolName: activeSchool?.name,
+      schoolLogo: activeSchool?.logo,
+      schoolShortName: activeSchool?.shortName
     };
 
     // 6. Real Financials & Fee Balance
@@ -648,6 +714,7 @@ exports.getParentPortalDashboard = async (req, res) => {
         } : null,
         student: studentProfile,
         children: formattedChildren,
+        school: activeSchool,
         fees: {
           totalAssigned,
           totalPaid,

@@ -13,6 +13,60 @@ const Homework = require('../models/Homework');
 const Leave = require('../models/Leave');
 const Payroll = require('../models/Payroll');
 const { StaffLoan, StaffAttendance } = require('../models/HR');
+const Tenant = require('../models/Tenant');
+const GlobalSetting = require('../models/GlobalSetting');
+const User = require('../models/User');
+
+// Helper to resolve school for teacher/staff
+const resolveSchoolForStaff = async (staffDoc, userEmail) => {
+  let sName = staffDoc?.schoolName;
+  let sLogo = staffDoc?.schoolLogo;
+  let sShort = staffDoc?.schoolShortName;
+
+  // 1. From staff tenant
+  if (staffDoc?.tenant) {
+    let t = staffDoc.tenant;
+    if (!t.schoolName && (typeof t === 'string' || (typeof t === 'object' && t._bsontype) || (typeof t === 'object' && t.toString))) {
+      t = await Tenant.findById(t);
+    }
+    if (t && t.schoolName) {
+      sName = sName || t.schoolName;
+      sLogo = sLogo || t.logoUrl;
+      sShort = sShort || t.subdomain || t.schoolName;
+    }
+  }
+
+  // 2. From User record if available
+  const emailToLookup = userEmail || staffDoc?.email;
+  if (!sName && emailToLookup) {
+    try {
+      const userDoc = await User.findOne({ email: emailToLookup.toLowerCase() }).populate('tenant');
+      if (userDoc) {
+        sName = userDoc.schoolName || userDoc.tenant?.schoolName;
+        sLogo = userDoc.schoolLogo || userDoc.tenant?.logoUrl;
+        sShort = userDoc.schoolShortName || userDoc.tenant?.subdomain;
+      }
+    } catch (_) {}
+  }
+
+  // 3. Fallback to GlobalSetting school profile
+  if (!sName) {
+    try {
+      const glob = await GlobalSetting.findOne({ key: 'school_profile' });
+      if (glob?.value) {
+        sName = glob.value.schoolName || 'Greenwood International School';
+        sLogo = glob.value.logoUrl || glob.value.logo || null;
+        sShort = glob.value.shortName || 'Smart Campus';
+      }
+    } catch (_) {}
+  }
+
+  return {
+    name: (sName || 'School ERP').trim(),
+    shortName: (sShort || 'Smart Campus').trim(),
+    logo: sLogo || null
+  };
+};
 
 // Helper for relative time formatting
 const formatTimeAgo = (date) => {
@@ -363,13 +417,18 @@ exports.getTeacherDashboard = async (req, res, next) => {
 
     // 9. Staff Profile & Payslip for Classic Layout
     let seniorTeacher = null;
-    if (req.user?.email) seniorTeacher = await Staff.findOne({ email: req.user.email.toLowerCase() });
-    if (!seniorTeacher) seniorTeacher = await Staff.findOne();
+    if (req.user?.email) seniorTeacher = await Staff.findOne({ email: req.user.email.toLowerCase() }).populate('tenant');
+    if (!seniorTeacher) seniorTeacher = await Staff.findOne().populate('tenant');
     const latestPayroll = seniorTeacher ? await Payroll.findOne({ staffId: seniorTeacher._id }).sort({ year: -1, month: -1 }) : null;
+    const resolvedSchool = await resolveSchoolForStaff(seniorTeacher, req.user?.email);
 
     res.status(200).json({
       success: true,
       data: {
+        school: resolvedSchool,
+        schoolName: resolvedSchool.name,
+        schoolLogo: resolvedSchool.logo,
+        schoolShortName: resolvedSchool.shortName,
         stats: {
           students: studentCount || 0,
           classes: classCount || 0,
@@ -438,11 +497,12 @@ exports.getTeacherProfile = async (req, res, next) => {
 
     let staff = null;
     if (Object.keys(query).length > 0) {
-      staff = await Staff.findOne(query);
+      staff = await Staff.findOne(query).populate('tenant');
     }
     if (!staff) {
-      staff = await Staff.findOne() || {};
+      staff = await Staff.findOne().populate('tenant') || {};
     }
+    const resolvedSchool = await resolveSchoolForStaff(staff, req.user?.email || staff?.email);
 
     const safeStaffId = staff.staffId || '';
     const safeName = staff.fullName || (req.user?.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : null) || 'Faculty Member';
@@ -566,7 +626,11 @@ exports.getTeacherProfile = async (req, res, next) => {
         career: staff.career || [],
         appraisals: staff.appraisals || [],
         qrCode: qrCodeDataUrl,
-        barcode: barcodeObj
+        barcode: barcodeObj,
+        school: resolvedSchool,
+        schoolName: resolvedSchool.name,
+        schoolLogo: resolvedSchool.logo,
+        schoolShortName: resolvedSchool.shortName
       }
     });
   } catch (error) {
@@ -620,11 +684,12 @@ exports.getTeacherLoans = async (req, res, next) => {
 
     let staff = null;
     if (Object.keys(query).length > 0) {
-      staff = await Staff.findOne(query);
+      staff = await Staff.findOne(query).populate('tenant');
     }
     if (!staff) {
-      staff = await Staff.findOne() || {};
+      staff = await Staff.findOne().populate('tenant') || {};
     }
+    const resolvedSchool = await resolveSchoolForStaff(staff, req.user?.email || staff?.email);
 
     const safeStaffId = staff.staffId || '';
     const safeStaffName = staff.fullName || 'Faculty Member';
@@ -892,11 +957,12 @@ exports.getTeacherLeaves = async (req, res, next) => {
 
     let staff = null;
     if (Object.keys(query).length > 0) {
-      staff = await Staff.findOne(query);
+      staff = await Staff.findOne(query).populate('tenant');
     }
     if (!staff) {
-      staff = await Staff.findOne() || {};
+      staff = await Staff.findOne().populate('tenant') || {};
     }
+    const resolvedSchool = await resolveSchoolForStaff(staff, req.user?.email || staff?.email);
 
     let leaveQuery = {
       $or: [

@@ -1,13 +1,15 @@
 # Dependencies
 node_modules/
 
-# Environment files
+# Environment files (Never commit sensitive secrets)
 .env
 .env.local
 .env.development
 .env.test
 .env.production
 *.env
+!*.env.example
+!.env.example
 
 # WhatsApp Session & Auth Credentials
 whatsapp_auth/
