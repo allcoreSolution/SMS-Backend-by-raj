@@ -173,7 +173,9 @@ staffSchema.pre('validate', function(next) {
   if (this.reportingManager === '' || this.reportingManager === 'null' || this.reportingManager === 'undefined' || !this.reportingManager) {
     this.reportingManager = null;
   }
-  next();
+  if (typeof next === 'function') {
+    next();
+  }
 });
 
 module.exports = mongoose.model('Staff', staffSchema);
