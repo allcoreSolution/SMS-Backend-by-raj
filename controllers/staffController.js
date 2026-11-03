@@ -159,7 +159,11 @@ const getStaffs = async (req, res) => {
 // @access  Private (requires view_staff permission)
 const getStaffById = async (req, res) => {
   try {
-    const staff = await Staff.findById(req.params.id)
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
+      : { staffId: req.params.id };
+
+    const staff = await Staff.findOne(query)
       .populate('role', 'name permissions')
       .populate('reportingManager', 'fullName staffId');
 
@@ -185,7 +189,11 @@ const getStaffById = async (req, res) => {
 // @access  Private (requires update_staff permission)
 const updateStaff = async (req, res) => {
   try {
-    let staff = await Staff.findById(req.params.id);
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
+      : { staffId: req.params.id };
+
+    let staff = await Staff.findOne(query);
 
     if (!staff) {
       if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
@@ -197,6 +205,38 @@ const updateStaff = async (req, res) => {
     // Sanitize reportingManager in updateStaff
     if (!staffData.reportingManager || staffData.reportingManager === '' || staffData.reportingManager === 'null' || staffData.reportingManager === 'undefined' || !mongoose.Types.ObjectId.isValid(staffData.reportingManager)) {
       staffData.reportingManager = null;
+    }
+
+    // Map role string or object to Role ObjectId
+    if (staffData.role) {
+      if (typeof staffData.role === 'object' && staffData.role._id) {
+        staffData.role = staffData.role._id;
+      } else if (typeof staffData.role === 'string') {
+        const trimmed = staffData.role.trim();
+        if (!trimmed || trimmed === 'null' || trimmed === 'undefined') {
+          delete staffData.role;
+        } else if (mongoose.Types.ObjectId.isValid(trimmed)) {
+          staffData.role = new mongoose.Types.ObjectId(trimmed);
+        } else {
+          const Role = require('../models/Role');
+          let roleDoc = await Role.findOne({
+            $or: [
+              { name: trimmed },
+              { name: { $regex: new RegExp(`^${trimmed}$`, 'i') } }
+            ]
+          });
+          if (!roleDoc) {
+            roleDoc = await Role.create({ name: trimmed, description: `${trimmed} role` });
+          }
+          staffData.role = roleDoc._id;
+        }
+      }
+    } else {
+      delete staffData.role;
+    }
+
+    if (staffData.firstName && !staffData.fullName) {
+      staffData.fullName = staffData.firstName;
     }
 
     // Prevent changing Staff ID or Email to an existing one
@@ -241,10 +281,10 @@ const updateStaff = async (req, res) => {
       }
     });
 
-    staff = await Staff.findByIdAndUpdate(req.params.id, staffData, {
+    staff = await Staff.findByIdAndUpdate(staff._id, staffData, {
       new: true,
       runValidators: true
-    });
+    }).populate('role', 'name permissions').populate('reportingManager', 'fullName staffId');
 
     return res.json({
       success: true,

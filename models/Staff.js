@@ -169,12 +169,9 @@ const staffSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-staffSchema.pre('validate', function(next) {
+staffSchema.pre('validate', function() {
   if (this.reportingManager === '' || this.reportingManager === 'null' || this.reportingManager === 'undefined' || !this.reportingManager) {
     this.reportingManager = null;
-  }
-  if (typeof next === 'function') {
-    next();
   }
 });
 
