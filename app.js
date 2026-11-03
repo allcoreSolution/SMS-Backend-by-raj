@@ -102,7 +102,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.length === 0 || allowedOrigins.includes(origin) || origin.includes('onrender.com') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true);
     }
     return callback(new Error('Origin not allowed by CORS'));
