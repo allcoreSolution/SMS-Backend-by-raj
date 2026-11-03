@@ -188,6 +188,7 @@ app.use('/api/coaching', coachingRoutes);
 app.use('/api/alumni', alumniRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/tenant', tenantRoutes);
+app.use('/api/tenants', tenantRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/settings', globalSettingRoutes);
 app.use('/api/superadmin', superAdminRoutes);

@@ -54,7 +54,7 @@ const resolveSchoolForStaff = async (staffDoc, userEmail) => {
     try {
       const glob = await GlobalSetting.findOne({ key: 'school_profile' });
       if (glob?.value) {
-        sName = glob.value.schoolName || 'Greenwood International School';
+        sName = glob.value.schoolName || 'RAM INTERNATIONAL SCHOOL';
         sLogo = glob.value.logoUrl || glob.value.logo || null;
         sShort = glob.value.shortName || 'Smart Campus';
       }
