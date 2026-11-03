@@ -72,6 +72,7 @@ const staffSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Staff',
     default: null,
+    set: (v) => (!v || v === '' || v === 'null' || v === 'undefined' ? null : v),
   },
   fathersName: {
     type: String,
@@ -166,6 +167,13 @@ const staffSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
+});
+
+staffSchema.pre('validate', function(next) {
+  if (this.reportingManager === '' || this.reportingManager === 'null' || this.reportingManager === 'undefined' || !this.reportingManager) {
+    this.reportingManager = null;
+  }
+  next();
 });
 
 module.exports = mongoose.model('Staff', staffSchema);

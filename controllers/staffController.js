@@ -21,6 +21,11 @@ const createStaff = async (req, res) => {
   try {
     const staffData = { ...req.body };
 
+    // Sanitize reportingManager in createStaff
+    if (!staffData.reportingManager || staffData.reportingManager === '' || staffData.reportingManager === 'null' || staffData.reportingManager === 'undefined' || !mongoose.Types.ObjectId.isValid(staffData.reportingManager)) {
+      delete staffData.reportingManager;
+    }
+
     // Check if Staff ID or Email already exists
     if (!staffData.staffId || !staffData.email) {
       // If staffId is missing, try using employeeCode
@@ -188,6 +193,11 @@ const updateStaff = async (req, res) => {
     }
 
     const staffData = { ...req.body };
+
+    // Sanitize reportingManager in updateStaff
+    if (!staffData.reportingManager || staffData.reportingManager === '' || staffData.reportingManager === 'null' || staffData.reportingManager === 'undefined' || !mongoose.Types.ObjectId.isValid(staffData.reportingManager)) {
+      staffData.reportingManager = null;
+    }
 
     // Prevent changing Staff ID or Email to an existing one
     if ((staffData.staffId && staffData.staffId !== staff.staffId) || 
