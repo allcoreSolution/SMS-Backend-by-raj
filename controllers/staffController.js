@@ -2,6 +2,7 @@ const Staff = require('../models/Staff');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { resolveTenant, isSameTenant } = require('../services/tenantResolver');
 
 // Helper to delete file from disk
 const deleteFileFromDisk = (relativePath) => {
@@ -38,12 +39,22 @@ const createStaff = async (req, res) => {
     if (!staffData.gender) staffData.gender = 'Select';
     if (staffData.firstName && !staffData.fullName) staffData.fullName = staffData.firstName;
 
-    // Map role string to Role ObjectId
-    if (staffData.role && !mongoose.Types.ObjectId.isValid(staffData.role)) {
+    // Map role string or default to Role ObjectId
+    if (!staffData.role || !mongoose.Types.ObjectId.isValid(staffData.role)) {
       const Role = require('../models/Role');
-      let roleDoc = await Role.findOne({ name: staffData.role });
+      const targetRoleName = String(staffData.role || staffData.roleName || 'Staff').trim();
+      let roleDoc = await Role.findOne({
+        $or: [
+          { name: targetRoleName },
+          { name: new RegExp(`^${targetRoleName}$`, 'i') }
+        ]
+      });
       if (!roleDoc) {
-        roleDoc = await Role.create({ name: staffData.role, description: `${staffData.role} role` });
+        roleDoc = await Role.create({
+          name: targetRoleName,
+          description: `${targetRoleName} role`,
+          permissions: ['view_staff']
+        });
       }
       staffData.role = roleDoc._id;
     }
@@ -83,9 +94,67 @@ const createStaff = async (req, res) => {
       }
     });
 
-    const assignedTenant = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
-    if (assignedTenant) {
-      staffData.tenant = assignedTenant;
+    // 1. Resolve Tenant with Strict Multi-Tenant Enforcement
+    let targetTenantId = null;
+    let targetTenantDoc = null;
+
+    // A. Check if the authenticated user has a tenant bound to their account
+    const userTenant = req.user?.tenant ? (req.user.tenant._id || req.user.tenant) : null;
+    
+    // B. Check incoming tenant identifier from body or headers
+    const incomingTenant = req.body.tenant || req.body.tenantId || req.body.schoolId || req.headers['x-tenant-id'] || req.tenantId;
+
+    if (userTenant) {
+      // User is scoped to a specific school tenant
+      const resolvedUserTenant = await resolveTenant(userTenant);
+      if (!resolvedUserTenant) {
+        if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+        return res.status(403).json({ success: false, message: 'Account is associated with an inactive or invalid school tenant.' });
+      }
+
+      // If an incoming tenant was also provided, verify it matches user's tenant (Cross-tenant protection)
+      if (incomingTenant) {
+        const resolvedIncoming = await resolveTenant(incomingTenant);
+        if (!resolvedIncoming || String(resolvedIncoming.tenantId) !== String(resolvedUserTenant.tenantId)) {
+          if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+          return res.status(403).json({
+            success: false,
+            message: 'Cross-tenant registration prohibited: You cannot register staff for another school tenant.'
+          });
+        }
+      }
+
+      targetTenantId = resolvedUserTenant.tenantId;
+      targetTenantDoc = resolvedUserTenant.tenant;
+    } else {
+      // User has no tenant bound (e.g. SuperAdmin or unauthenticated/internal caller)
+      if (!incomingTenant) {
+        if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+        return res.status(400).json({
+          success: false,
+          message: 'Valid tenant is required for staff registration. None was provided.'
+        });
+      }
+
+      const resolvedIncoming = await resolveTenant(incomingTenant);
+      if (!resolvedIncoming) {
+        if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+        return res.status(400).json({
+          success: false,
+          message: `Invalid tenant identifier "${incomingTenant}". No corresponding active tenant exists.`
+        });
+      }
+
+      targetTenantId = resolvedIncoming.tenantId;
+      targetTenantDoc = resolvedIncoming.tenant;
+    }
+
+    // Assign the validated MongoDB ObjectId and school metadata
+    staffData.tenant = targetTenantId;
+    if (targetTenantDoc) {
+      if (!staffData.schoolName) staffData.schoolName = targetTenantDoc.schoolName;
+      if (!staffData.schoolLogo && targetTenantDoc.logoUrl) staffData.schoolLogo = targetTenantDoc.logoUrl;
+      if (!staffData.schoolShortName && targetTenantDoc.subdomain) staffData.schoolShortName = targetTenantDoc.subdomain;
     }
 
     const staff = await Staff.create(staffData);
@@ -111,9 +180,14 @@ const getStaffs = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, department, designation, employmentType } = req.query;
     const query = {};
-    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
-    if (tenantId && !req.isDemoAdmin) {
-      query.tenant = tenantId;
+    const rawTenant = req.user?.tenant || req.query.tenant || req.query.tenantId || req.headers['x-tenant-id'] || req.tenantId;
+    if (rawTenant && !req.isDemoAdmin) {
+      const resolved = await resolveTenant(rawTenant);
+      if (resolved) {
+        query.tenant = resolved.tenantId;
+      } else if (mongoose.Types.ObjectId.isValid(rawTenant)) {
+        query.tenant = new mongoose.Types.ObjectId(rawTenant);
+      }
     }
 
     if (search) {
@@ -132,6 +206,7 @@ const getStaffs = async (req, res) => {
     const total = await Staff.countDocuments(query);
     const staffs = await Staff.find(query)
       .populate('role', 'name')
+      .populate('tenant', 'schoolName email subdomain')
       .populate('reportingManager', 'fullName staffId')
       .sort({ createdAt: -1 })
       .limit(Number(limit))
@@ -165,10 +240,19 @@ const getStaffById = async (req, res) => {
 
     const staff = await Staff.findOne(query)
       .populate('role', 'name permissions')
+      .populate('tenant', 'schoolName email subdomain status')
       .populate('reportingManager', 'fullName staffId');
 
     if (!staff) {
       return res.status(404).json({ success: false, message: 'Staff member not found' });
+    }
+
+    // Tenant isolation check
+    if (req.user?.tenant) {
+      const userTenantId = String(req.user.tenant._id || req.user.tenant);
+      if (staff.tenant && String(staff.tenant._id || staff.tenant) !== userTenantId) {
+        return res.status(403).json({ success: false, message: 'Access denied: Staff belongs to another school tenant.' });
+      }
     }
 
     return res.json({
@@ -200,7 +284,36 @@ const updateStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Staff member not found' });
     }
 
+    // Multi-tenant isolation for updates
+    if (req.user?.tenant) {
+      const userTenantId = String(req.user.tenant._id || req.user.tenant);
+      if (staff.tenant && String(staff.tenant._id || staff.tenant) !== userTenantId) {
+        if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+        return res.status(403).json({ success: false, message: 'Access denied: Cannot update staff from another tenant.' });
+      }
+    }
+
     const staffData = { ...req.body };
+
+    // Tenant update handling
+    if (staffData.tenant || staffData.tenantId || staffData.schoolId) {
+      const incoming = staffData.tenant || staffData.tenantId || staffData.schoolId;
+      const resolved = await resolveTenant(incoming);
+      if (!resolved) {
+        if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+        return res.status(400).json({ success: false, message: `Invalid tenant identifier "${incoming}".` });
+      }
+      if (req.user?.tenant) {
+        const userTenantId = String(req.user.tenant._id || req.user.tenant);
+        if (String(resolved.tenantId) !== userTenantId) {
+          if (req.file) deleteFileFromDisk(`uploads/staffPhotos/${req.file.filename}`);
+          return res.status(403).json({ success: false, message: 'Cross-tenant modification prohibited.' });
+        }
+      }
+      staffData.tenant = resolved.tenantId;
+    } else {
+      delete staffData.tenant; // Do not overwrite existing tenant
+    }
 
     // Sanitize reportingManager in updateStaff
     if (!staffData.reportingManager || staffData.reportingManager === '' || staffData.reportingManager === 'null' || staffData.reportingManager === 'undefined' || !mongoose.Types.ObjectId.isValid(staffData.reportingManager)) {
@@ -303,10 +416,22 @@ const updateStaff = async (req, res) => {
 // @access  Private (requires delete_staff permission)
 const deleteStaff = async (req, res) => {
   try {
-    const staff = await Staff.findById(req.params.id);
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
+      : { staffId: req.params.id };
+
+    const staff = await Staff.findOne(query);
 
     if (!staff) {
       return res.status(404).json({ success: false, message: 'Staff member not found' });
+    }
+
+    // Multi-tenant isolation for delete
+    if (req.user?.tenant) {
+      const userTenantId = String(req.user.tenant._id || req.user.tenant);
+      if (staff.tenant && String(staff.tenant._id || staff.tenant) !== userTenantId) {
+        return res.status(403).json({ success: false, message: 'Access denied: Cannot delete staff from another tenant.' });
+      }
     }
 
     // Delete photo from disk

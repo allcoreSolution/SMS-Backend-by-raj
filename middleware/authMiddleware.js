@@ -122,9 +122,18 @@ const protect = async (req, res, next) => {
     req.userRole = normalizeRole(user, modelName);
     
     // Multi-tenant resolution
-    const explicitTenant = user.tenant ? String(user.tenant._id || user.tenant) : (req.headers['x-tenant-id'] || null);
-    req.tenantId = explicitTenant;
-    req.isDemoAdmin = (!explicitTenant || user.email === 'ryadavy498@gmail.com');
+    let resolvedTenantId = null;
+    if (user.tenant) {
+      resolvedTenantId = String(user.tenant._id || user.tenant);
+    } else if (req.headers['x-tenant-id']) {
+      try {
+        const { resolveTenant } = require('../services/tenantResolver');
+        const resolved = await resolveTenant(req.headers['x-tenant-id']);
+        if (resolved) resolvedTenantId = String(resolved.tenantId);
+      } catch (_) {}
+    }
+    req.tenantId = resolvedTenantId;
+    req.isDemoAdmin = (!resolvedTenantId || user.email === 'ryadavy498@gmail.com');
     next();
   } catch (error) {
     return res.status(401).json({
@@ -167,4 +176,12 @@ const authorizeDriver = (req, res, next) => {
   next();
 };
 
-module.exports = { protect, checkPermission, checkStudentOrAdmin, authorizeDriver };
+const optionalProtect = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return protect(req, res, next);
+  }
+  next();
+};
+
+module.exports = { protect, optionalProtect, checkPermission, checkStudentOrAdmin, authorizeDriver };

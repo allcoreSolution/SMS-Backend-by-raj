@@ -8,6 +8,10 @@ const {
   deleteStaff
 } = require('../controllers/staffController');
 const { uploadStaffPhoto } = require('../middleware/uploadMiddleware');
+const { optionalProtect } = require('../middleware/authMiddleware');
+
+// Attach optionalProtect so token/user context is available when provided
+router.use(optionalProtect);
 
 // Staff CRUD operations
 router.route('/')

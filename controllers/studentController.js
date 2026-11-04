@@ -98,9 +98,19 @@ const createStudent = async (req, res) => {
 
     studentData.extraFields = extraFields;
 
-    const assignedTenant = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
-    if (assignedTenant) {
-      studentData.tenant = assignedTenant;
+    const incomingTenant = req.body.tenant || req.body.tenantId || req.body.schoolId || req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
+    if (incomingTenant) {
+      try {
+        const { resolveTenant } = require('../services/tenantResolver');
+        const resolved = await resolveTenant(incomingTenant);
+        if (resolved) {
+          studentData.tenant = resolved.tenantId;
+          if (!studentData.schoolName) studentData.schoolName = resolved.tenant.schoolName;
+          if (!studentData.schoolShortName && resolved.tenant.subdomain) studentData.schoolShortName = resolved.tenant.subdomain;
+        } else if (mongoose.Types.ObjectId.isValid(incomingTenant)) {
+          studentData.tenant = new mongoose.Types.ObjectId(incomingTenant);
+        }
+      } catch (_) {}
     }
 
     // Save student
@@ -199,9 +209,17 @@ const getStudents = async (req, res) => {
     } = req.query;
 
     const query = {};
-    const tenantId = req.tenantId || req.headers['x-tenant-id'] || req.user?.tenant;
-    if (tenantId && !req.isDemoAdmin) {
-      query.tenant = tenantId;
+    const rawTenant = req.user?.tenant || req.query.tenant || req.query.tenantId || req.headers['x-tenant-id'] || req.tenantId;
+    if (rawTenant && !req.isDemoAdmin) {
+      try {
+        const { resolveTenant } = require('../services/tenantResolver');
+        const resolved = await resolveTenant(rawTenant);
+        if (resolved) {
+          query.tenant = resolved.tenantId;
+        } else if (mongoose.Types.ObjectId.isValid(rawTenant)) {
+          query.tenant = new mongoose.Types.ObjectId(rawTenant);
+        }
+      } catch (_) {}
     }
 
     // Search filter
